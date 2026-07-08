@@ -1398,13 +1398,23 @@ img { max-width: 100%; height: auto; }
   }
 }
 
-/* Default features grid for larger/desktop screens */
+/* Default features grid is a single column for mobile (1 card per line) */
 .landing-features-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
+
+@media (min-width: 600px) {
+  .landing-features-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 @media (min-width: 900px) {
   .landing-features-grid {
+    display: grid;
     grid-template-columns: repeat(4, 1fr);
   }
 }
