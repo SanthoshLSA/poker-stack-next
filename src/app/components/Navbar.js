@@ -47,11 +47,11 @@ export default function Navbar() {
                     {user.username?.charAt(0).toUpperCase()}
                   </div>
                 </Link>
-                <button className="btn btn-ghost btn-sm" onClick={handleLogout}>Exit ♠</button>
+                <button className="btn btn-ghost btn-sm nav-exit-btn" onClick={handleLogout}>Exit ♠</button>
               </>
             ) : (
               <>
-                <Link href="/login" className="btn btn-ghost btn-sm">Login</Link>
+                <Link href="/login" className="btn btn-ghost btn-sm nav-login-btn">Login</Link>
                 <Link href="/register" className="btn btn-primary btn-sm">Join Table</Link>
               </>
             )}

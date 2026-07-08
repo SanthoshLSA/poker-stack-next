@@ -46,7 +46,7 @@ export default function LandingPage() {
           Track chips, manage rebuys, and verify bankroll conservation across your entire game night — with zero guesswork.
         </p>
 
-        <div style={{ display: 'flex', gap: '14px', justifyContent: 'center', flexWrap: 'wrap' }}>
+        <div className="landing-actions" style={{ display: 'flex', gap: '14px', justifyContent: 'center', flexWrap: 'wrap' }}>
           <Link href="/register" className="btn btn-primary" style={{ padding: '14px 36px', fontSize: '16px' }}>
             ♠ Join the Table
           </Link>
