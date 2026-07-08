@@ -381,85 +381,90 @@ export async function endSessionAction(userId, roomCode, finalStacks) {
       return { error: 'Only the session admin can end the session' };
     }
 
-    session.status = 'ended';
-    session.endedAt = new Date();
-
+    // 1. Apply final stacks
     for (const player of session.players) {
       const pId = player.user.toString();
-      const finalStack = finalStacks[pId] !== undefined ? Number(finalStacks[pId]) : 0;
-      player.finalStack = finalStack;
-      const profit = finalStack - player.totalBuyIn;
+      player.finalStack = finalStacks[pId] !== undefined ? Number(finalStacks[pId]) : 0;
+    }
 
-      // Update global user stats
-      const userDoc = await User.findById(player.user);
-      if (userDoc) {
-        const updates = {
-          $inc: {
-            totalProfit: profit,
-            sessionsPlayed: 1,
-            sessionsWon: profit > 0 ? 1 : 0
-          }
-        };
-        // Track highest win/loss
-        if (profit > 0 && profit > (userDoc.highestWin || 0)) {
-          updates.$set = { ...(updates.$set || {}), highestWin: profit };
-        }
-        if (profit < 0 && profit < (userDoc.highestLoss || 0)) {
-          updates.$set = { ...(updates.$set || {}), highestLoss: profit };
-        }
-        await User.findByIdAndUpdate(player.user, updates);
-      }
+    session.status = 'ended';
+    session.endedAt = new Date();
+    await session.save();
 
-      // Update group member stats
-      if (session.group) {
+    // 2. Update user stats + create PlayerResult (catch per-player errors so one bad player doesn't kill all)
+    for (const player of session.players) {
+      const profit = (player.finalStack ?? 0) - (player.totalBuyIn || 0);
+
+      try {
+        const userDoc = await User.findById(player.user);
+        if (userDoc) {
+          const incUpdate = { totalProfit: profit, sessionsPlayed: 1, sessionsWon: profit > 0 ? 1 : 0 };
+          const setUpdate = {};
+          if (profit > 0 && profit > (userDoc.highestWin || 0)) setUpdate.highestWin = profit;
+          if (profit < 0 && profit < (userDoc.highestLoss || 0)) setUpdate.highestLoss = profit;
+          const op = { $inc: incUpdate };
+          if (Object.keys(setUpdate).length) op.$set = setUpdate;
+          await User.findByIdAndUpdate(player.user, op);
+        }
+      } catch (e) { console.error('User stat update error:', player.username, e.message); }
+
+      try {
+        await PlayerResult.create({
+          user: player.user,
+          username: player.username,
+          session: session._id,
+          sessionName: session.name,
+          group: session.group || null,
+          buyIn: player.totalBuyIn || 0,
+          cashOut: player.finalStack ?? 0,
+          profit
+        });
+      } catch (e) { console.error('PlayerResult create error:', player.username, e.message); }
+    }
+
+    // 3. Update group memberStats — fetch once, update all, save once
+    if (session.group) {
+      try {
         const group = await Group.findById(session.group);
         if (group) {
-          const statIdx = group.memberStats.findIndex(s => s.user.toString() === pId);
-          if (statIdx >= 0) {
-            group.memberStats[statIdx].sessionsPlayed += 1;
-            group.memberStats[statIdx].totalProfit += profit;
-            if (profit > 0) {
-              group.memberStats[statIdx].sessionsWon += 1;
-              if (profit > group.memberStats[statIdx].highestWin) {
-                group.memberStats[statIdx].highestWin = profit;
+          for (const player of session.players) {
+            const pId = player.user.toString();
+            const profit = (player.finalStack ?? 0) - (player.totalBuyIn || 0);
+            const idx = group.memberStats.findIndex(s => s.user && s.user.toString() === pId);
+
+            if (idx >= 0) {
+              const ms = group.memberStats[idx];
+              ms.sessionsPlayed = (ms.sessionsPlayed || 0) + 1;
+              ms.totalProfit = (ms.totalProfit || 0) + profit;
+              if (profit > 0) {
+                ms.sessionsWon = (ms.sessionsWon || 0) + 1;
+                if (profit > (ms.highestWin || 0)) ms.highestWin = profit;
               }
+              if (profit < 0 && profit < (ms.highestLoss || 0)) ms.highestLoss = profit;
+              // mark modified so Mongoose saves it
+              group.markModified('memberStats');
+            } else {
+              group.memberStats.push({
+                user: player.user,
+                username: player.username,
+                avatarColor: player.avatarColor || '#c9a84c',
+                sessionsPlayed: 1,
+                sessionsWon: profit > 0 ? 1 : 0,
+                totalProfit: profit,
+                highestWin: profit > 0 ? profit : 0,
+                highestLoss: profit < 0 ? profit : 0
+              });
             }
-            if (profit < 0 && profit < group.memberStats[statIdx].highestLoss) {
-              group.memberStats[statIdx].highestLoss = profit;
-            }
-          } else {
-            group.memberStats.push({
-              user: player.user,
-              username: player.username,
-              avatarColor: player.avatarColor,
-              sessionsPlayed: 1,
-              sessionsWon: profit > 0 ? 1 : 0,
-              totalProfit: profit,
-              highestWin: profit > 0 ? profit : 0,
-              highestLoss: profit < 0 ? profit : 0
-            });
           }
           await group.save();
         }
-      }
-
-      await PlayerResult.create({
-        user: player.user,
-        username: player.username,
-        session: session._id,
-        sessionName: session.name,
-        group: session.group,
-        buyIn: player.totalBuyIn,
-        cashOut: finalStack,
-        profit
-      });
+      } catch (e) { console.error('Group stat update error:', e.message); }
     }
 
-    await session.save();
     return { session: JSON.parse(JSON.stringify(session)) };
   } catch (err) {
-    console.error('End session error:', err);
-    return { error: 'Server error ending session' };
+    console.error('End session error:', err.message, err.stack);
+    return { error: `Server error ending session: ${err.message}` };
   }
 }
 
