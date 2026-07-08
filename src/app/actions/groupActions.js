@@ -1,4 +1,3 @@
-// src/app/actions/groupActions.js
 'use server';
 
 import { connectDB } from '../lib/db';
@@ -29,6 +28,9 @@ export async function createGroupAction(userId, data) {
       exists = await Group.findOne({ inviteCode });
     }
 
+    const user = await User.findById(userId);
+    if (!user) return { error: 'User not found' };
+
     const group = await Group.create({
       name: name.trim(),
       description: description?.trim(),
@@ -37,18 +39,14 @@ export async function createGroupAction(userId, data) {
       members: [userId],
       memberStats: [{
         user: userId,
-        sessionsPlayed: 0,
-        sessionsWon: 0,
-        highestWin: 0,
-        highestLoss: 0,
-        totalProfit: 0
+        username: user.username,
+        avatarColor: user.avatarColor
       }]
     });
 
-    const populated = await Group.findById(group._id).populate('creator', 'username avatarColor');
-    return { group: JSON.parse(JSON.stringify(populated)) };
+    return { group: JSON.parse(JSON.stringify(group)) };
   } catch (err) {
-    console.error('Create group action error:', err);
+    console.error('Create group error:', err);
     return { error: 'Server error creating group' };
   }
 }
@@ -57,12 +55,9 @@ export async function getMyGroupsAction(userId) {
   try {
     await connectDB();
     const groups = await Group.find({ members: userId })
-      .populate('creator', 'username avatarColor')
-      .populate('members', 'username avatarColor')
       .sort({ createdAt: -1 });
     return { groups: JSON.parse(JSON.stringify(groups)) };
   } catch (err) {
-    console.error(err);
     return { error: 'Server error fetching groups' };
   }
 }
@@ -76,57 +71,42 @@ export async function joinGroupAction(userId, inviteCode) {
     if (!group) return { error: 'Invalid invite code. No group found.' };
 
     if (group.members.some(m => m.toString() === userId)) {
-      return { error: 'You are already a member of this group' };
+      return { message: 'Already a member', group: JSON.parse(JSON.stringify(group)) };
     }
+
+    const user = await User.findById(userId);
+    if (!user) return { error: 'User not found' };
 
     group.members.push(userId);
 
-    const alreadyHasStats = group.memberStats.some(s => s.user.toString() === userId);
-    if (!alreadyHasStats) {
+    const statExists = group.memberStats.some(s => s.user.toString() === userId);
+    if (!statExists) {
       group.memberStats.push({
         user: userId,
-        sessionsPlayed: 0,
-        sessionsWon: 0,
-        highestWin: 0,
-        highestLoss: 0,
-        totalProfit: 0
+        username: user.username,
+        avatarColor: user.avatarColor
       });
     }
 
     await group.save();
-
-    const populated = await Group.findById(group._id)
-      .populate('creator', 'username avatarColor')
-      .populate('members', 'username avatarColor');
-
-    return { group: JSON.parse(JSON.stringify(populated)) };
+    return { group: JSON.parse(JSON.stringify(group)), message: `Joined ${group.name}!` };
   } catch (err) {
     return { error: 'Server error joining group' };
   }
 }
 
-export async function getGroupByIdAction(groupId) {
+export async function getGroupDetailAction(userId, groupId) {
   try {
     await connectDB();
-    const group = await Group.findById(groupId)
-      .populate('creator', 'username avatarColor')
-      .populate('members', 'username avatarColor')
-      .populate('memberStats.user', 'username avatarColor name');
-
+    const group = await Group.findById(groupId);
     if (!group) return { error: 'Group not found' };
 
-    const formattedGroup = group.toObject();
-    formattedGroup.members = formattedGroup.members.map(member => {
-      const stats = formattedGroup.memberStats.find(s => s.user._id.toString() === member._id.toString());
-      return {
-        ...member,
-        stats: stats || { sessionsPlayed: 0, sessionsWon: 0, highestWin: 0, highestLoss: 0 }
-      };
-    });
+    const isMember = group.members.some(m => m.toString() === userId);
+    if (!isMember) return { error: 'You are not a member of this group' };
 
-    return { group: JSON.parse(JSON.stringify(formattedGroup)) };
+    return { group: JSON.parse(JSON.stringify(group)) };
   } catch (err) {
-    return { error: 'Server error fetching group details' };
+    return { error: 'Server error fetching group' };
   }
 }
 
@@ -136,7 +116,7 @@ export async function leaveGroupAction(userId, groupId) {
     const group = await Group.findById(groupId);
     if (!group) return { error: 'Group not found' };
     if (group.creator.toString() === userId) {
-      return { error: 'Creator cannot leave the group.' };
+      return { error: 'Creator cannot leave the group' };
     }
     group.members = group.members.filter(m => m.toString() !== userId);
     await group.save();

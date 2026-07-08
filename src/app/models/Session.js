@@ -1,4 +1,3 @@
-// src/app/models/Session.js
 import mongoose from 'mongoose';
 
 const transactionSchema = new mongoose.Schema({
@@ -39,13 +38,13 @@ const transactionSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
-  timestamp: {
-    type: Date,
-    default: Date.now
-  },
   isDeleted: {
     type: Boolean,
     default: false
+  },
+  timestamp: {
+    type: Date,
+    default: Date.now
   }
 });
 
@@ -99,6 +98,7 @@ const sessionSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  // group is now required — sessions must belong to a group
   group: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Group',

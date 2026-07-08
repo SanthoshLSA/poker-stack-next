@@ -42,7 +42,7 @@ const userSchema = new mongoose.Schema({
   },
   highestLoss: {
     type: Number,
-    default: 0
+    default: 0   // stored as negative number, e.g. -500
   }
 }, { timestamps: true });
 

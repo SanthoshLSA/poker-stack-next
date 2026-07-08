@@ -18,52 +18,36 @@ export default function Navbar() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  useEffect(() => {
-    setMenuOpen(false);
-  }, [pathname]);
+  useEffect(() => { setMenuOpen(false); }, [pathname]);
 
-  const handleLogout = () => {
-    logout();
-    router.push('/login');
-  };
-
+  const handleLogout = () => { logout(); router.push('/login'); };
   const isActive = (path) => pathname === path || pathname?.startsWith(path + '/');
 
   return (
     <>
       <nav className="navbar" style={{ boxShadow: scrolled ? '0 1px 20px rgba(0,0,0,0.5)' : 'none' }}>
         <div className="navbar-inner">
-          {/* Logo */}
           <Link href={user ? '/dashboard' : '/'} className="navbar-logo">
             <span className="navbar-logo-icon">♠</span>
             POKER<span style={{ color: 'var(--color-gold)' }}>STACK</span>
           </Link>
 
-          {/* Desktop Links */}
           {user && (
             <div className="navbar-links">
               <Link href="/dashboard" className={`navbar-link ${isActive('/dashboard') ? 'active' : ''}`}>Dashboard</Link>
               <Link href="/groups" className={`navbar-link ${isActive('/groups') ? 'active' : ''}`}>Groups</Link>
-              <Link href="/leaderboard" className={`navbar-link ${isActive('/leaderboard') ? 'active' : ''}`}>Leaderboard</Link>
             </div>
           )}
 
-          {/* Actions */}
           <div className="navbar-actions">
             {user ? (
               <>
                 <Link href="/profile">
-                  <div
-                    className="navbar-avatar"
-                    style={{ background: user.avatarColor || '#c9a84c', color: '#0a0a0f' }}
-                    title="Profile"
-                  >
+                  <div className="navbar-avatar" style={{ background: user.avatarColor || '#c9a84c', color: '#0a0a0f' }} title="Profile">
                     {user.username?.charAt(0).toUpperCase()}
                   </div>
                 </Link>
-                <button className="btn btn-ghost btn-sm" onClick={handleLogout}>
-                  Exit ♠
-                </button>
+                <button className="btn btn-ghost btn-sm" onClick={handleLogout}>Exit ♠</button>
               </>
             ) : (
               <>
@@ -73,27 +57,24 @@ export default function Navbar() {
             )}
             {user && (
               <button className="navbar-menu-btn" onClick={() => setMenuOpen(o => !o)} aria-label="Menu">
-                {menuOpen ? 'x' : '='}
+                {menuOpen ? '✕' : '≡'}
               </button>
             )}
           </div>
         </div>
       </nav>
 
-      {/* Mobile Menu */}
       {user && (
         <div className={`mobile-menu ${menuOpen ? 'open' : ''}`}>
           <Link href="/dashboard" className="mobile-menu-link">♠ Dashboard</Link>
-          <Link href="/session/create" className="mobile-menu-link">♠ New Session</Link>
           <Link href="/groups" className="mobile-menu-link">♥ Groups</Link>
-          <Link href="/leaderboard" className="mobile-menu-link">♦ Leaderboard</Link>
           <Link href="/profile" className="mobile-menu-link">♣ Profile</Link>
           <button
             onClick={handleLogout}
             className="mobile-menu-link"
             style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontFamily: 'var(--font-display)', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.1em' }}
           >
-            x Exit Game
+            ✕ Exit Game
           </button>
         </div>
       )}

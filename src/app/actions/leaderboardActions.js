@@ -1,33 +1,32 @@
-// src/app/actions/leaderboardActions.js
 'use server';
 
 import { connectDB } from '../lib/db';
-import User from '../models/User';
+import PlayerResult from '../models/PlayerResult';
 
-export async function getLeaderboardAction() {
-  return { leaderboard: [] };
-}
-
-export async function getGlobalLeaderboardAction() {
-  return { leaderboard: [] };
-}
-
-export async function getUserStatsAction(userId) {
+// Per-user session result history (used on Profile page)
+export async function getUserStatsAction(requesterId, targetUserId) {
   try {
     await connectDB();
-    const user = await User.findById(userId).lean();
-    if (!user) return { error: 'User not found' };
-    
+    const results = await PlayerResult.find({ user: targetUserId })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .populate('group', 'name');
+
     return {
-      stats: {
-        sessionsPlayed: user.sessionsPlayed || 0,
-        sessionsWon: user.sessionsWon || 0,
-        totalProfit: user.totalProfit || 0,
-        highestWin: user.highestWin || 0,
-        highestLoss: user.highestLoss || 0
-      }
+      results: JSON.parse(JSON.stringify(
+        results.map(r => ({
+          _id: r._id.toString(),
+          sessionName: r.sessionName,
+          groupName: r.group?.name || null,
+          buyIn: r.buyIn,
+          cashOut: r.cashOut,
+          profit: r.profit,
+          createdAt: r.createdAt
+        }))
+      ))
     };
   } catch (err) {
-    return { error: 'Server error' };
+    console.error('getUserStatsAction error:', err);
+    return { error: 'Server error fetching stats' };
   }
 }

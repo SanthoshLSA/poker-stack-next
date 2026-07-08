@@ -1,4 +1,3 @@
-// src/app/actions/sessionActions.js
 'use server';
 
 import { connectDB } from '../lib/db';
@@ -18,6 +17,7 @@ function generateRoomCode() {
   return code;
 }
 
+// ─── Create Session (group required, auto ₹200 to admin) ──────────────────────
 export async function createSessionAction(userId, data) {
   try {
     await connectDB();
@@ -49,22 +49,22 @@ export async function createSessionAction(userId, data) {
       exists = await Session.findOne({ roomCode, status: 'active' });
     }
 
-    const startingBank = Number(initialBank) - AUTO_BUYIN_AMOUNT;
+    const initBank = Number(initialBank);
 
+    // Admin gets auto ₹200 buyin
     const session = await Session.create({
       name: name.trim(),
       roomCode,
       admin: userId,
       adminUsername: creatorUser.username,
       group: groupId,
-      initialBank: Number(initialBank),
-      currentBank: startingBank,
+      initialBank: initBank,
+      currentBank: initBank - AUTO_BUYIN_AMOUNT,
       players: [{
         user: userId,
         username: creatorUser.username,
         avatarColor: creatorUser.avatarColor,
-        totalBuyIn: AUTO_BUYIN_AMOUNT,
-        joinedAt: new Date()
+        totalBuyIn: AUTO_BUYIN_AMOUNT
       }],
       transactions: [{
         type: 'buyin',
@@ -74,12 +74,14 @@ export async function createSessionAction(userId, data) {
         to: userId,
         toUsername: creatorUser.username,
         amount: AUTO_BUYIN_AMOUNT,
-        note: 'Auto buy-in on join',
-        timestamp: new Date()
+        note: 'Auto buy-in'
       }]
     });
 
     await Group.findByIdAndUpdate(groupId, { $inc: { totalSessions: 1 } });
+
+    // Ensure admin is in memberStats
+    await _ensureMemberStat(groupId, userId, creatorUser.username, creatorUser.avatarColor);
 
     return { session: JSON.parse(JSON.stringify(session)) };
   } catch (err) {
@@ -88,6 +90,7 @@ export async function createSessionAction(userId, data) {
   }
 }
 
+// ─── Join Session (auto ₹200 buyin from bank) ─────────────────────────────────
 export async function joinSessionAction(userId, roomCode) {
   try {
     await connectDB();
@@ -95,12 +98,6 @@ export async function joinSessionAction(userId, roomCode) {
 
     const session = await Session.findOne({ roomCode: roomCode.toUpperCase().trim(), status: 'active' });
     if (!session) return { error: 'Session not found or has ended' };
-
-    const group = await Group.findById(session.group);
-    if (!group) return { error: 'Session group not found' };
-    if (!group.members.some(m => m.toString() === userId)) {
-      return { error: 'You must be a member of this group to join this session' };
-    }
 
     const userObj = await User.findById(userId);
     if (!userObj) return { error: 'User not found' };
@@ -110,19 +107,27 @@ export async function joinSessionAction(userId, roomCode) {
       return { session: JSON.parse(JSON.stringify(session)), message: 'Already in session' };
     }
 
-    if (session.currentBank < AUTO_BUYIN_AMOUNT) {
-      return { error: `Bank only has ₹${session.currentBank}, not enough for ₹${AUTO_BUYIN_AMOUNT} auto buy-in` };
+    // Check group membership
+    const group = await Group.findById(session.group);
+    if (!group || !group.members.some(m => m.toString() === userId)) {
+      return { error: 'You must be a member of the group to join this session' };
     }
+
+    // Auto ₹200 buyin
+    const warnings = [];
+    if (AUTO_BUYIN_AMOUNT > session.currentBank) {
+      warnings.push(`Bank only has ₹${session.currentBank} — auto buy-in reduced to bank balance`);
+    }
+    const buyinAmount = Math.min(AUTO_BUYIN_AMOUNT, session.currentBank);
 
     session.players.push({
       user: userId,
       username: userObj.username,
       avatarColor: userObj.avatarColor,
-      totalBuyIn: AUTO_BUYIN_AMOUNT,
-      joinedAt: new Date()
+      totalBuyIn: buyinAmount
     });
 
-    session.currentBank -= AUTO_BUYIN_AMOUNT;
+    session.currentBank -= buyinAmount;
 
     session.transactions.push({
       type: 'buyin',
@@ -131,29 +136,31 @@ export async function joinSessionAction(userId, roomCode) {
       fromUsername: 'Bank',
       to: userId,
       toUsername: userObj.username,
-      amount: AUTO_BUYIN_AMOUNT,
-      note: 'Auto buy-in on join',
-      timestamp: new Date()
+      amount: buyinAmount,
+      note: 'Auto buy-in'
     });
 
     await session.save();
-    return { session: JSON.parse(JSON.stringify(session)) };
+
+    // Ensure in memberStats
+    await _ensureMemberStat(session.group.toString(), userId, userObj.username, userObj.avatarColor);
+
+    return { session: JSON.parse(JSON.stringify(session)), warnings };
   } catch (err) {
     console.error('Join session error:', err);
     return { error: 'Server error joining session' };
   }
 }
 
+// ─── Get My Sessions ──────────────────────────────────────────────────────────
 export async function getMySessionsAction(userId) {
   try {
     await connectDB();
-    const sessions = await Session.find({
-      'players.user': userId
-    })
+    const sessions = await Session.find({ 'players.user': userId })
       .select('name roomCode status admin adminUsername initialBank currentBank players startedAt endedAt group')
       .populate('group', 'name')
       .sort({ createdAt: -1 })
-      .limit(20);
+      .limit(30);
 
     return { sessions: JSON.parse(JSON.stringify(sessions)) };
   } catch (err) {
@@ -161,6 +168,7 @@ export async function getMySessionsAction(userId) {
   }
 }
 
+// ─── Get Session Detail ───────────────────────────────────────────────────────
 export async function getSessionDetailAction(userId, roomCode) {
   try {
     await connectDB();
@@ -169,10 +177,9 @@ export async function getSessionDetailAction(userId, roomCode) {
 
     if (!session) return { error: 'Session not found' };
 
-    const group = await Group.findById(session.group);
-    if (!group) return { error: 'Group not found' };
-    if (!group.members.some(m => m.toString() === userId)) {
-      return { error: 'You are not a member of this group' };
+    const isParticipant = session.players.some(p => p.user.toString() === userId);
+    if (!isParticipant && session.admin.toString() !== userId) {
+      return { error: 'You are not part of this session' };
     }
 
     return { session: JSON.parse(JSON.stringify(session)) };
@@ -181,6 +188,7 @@ export async function getSessionDetailAction(userId, roomCode) {
   }
 }
 
+// ─── Record Transaction ───────────────────────────────────────────────────────
 export async function recordTransactionAction(userId, roomCode, data) {
   try {
     await connectDB();
@@ -203,11 +211,12 @@ export async function recordTransactionAction(userId, roomCode, data) {
     const warnings = [];
 
     if (type === 'return_to_bank') {
-      if (!fromUserId) return { error: 'Player is required for return to bank' };
+      // Player returns chips to bank
+      if (!fromUserId) return { error: 'Source player is required for return to bank' };
       const fromPlayer = session.players.find(p => p.user.toString() === fromUserId);
-      if (!fromPlayer) return { error: 'Player not found in session' };
+      if (!fromPlayer) return { error: 'Source player not found' };
       if (txAmount > fromPlayer.totalBuyIn) {
-        warnings.push(`${fromPlayer.username} only has ₹${fromPlayer.totalBuyIn} in buy-in`);
+        warnings.push(`${fromPlayer.username} only has ₹${fromPlayer.totalBuyIn} buy-in remaining`);
       }
       fromPlayer.totalBuyIn -= txAmount;
       session.currentBank += txAmount;
@@ -220,10 +229,8 @@ export async function recordTransactionAction(userId, roomCode, data) {
         to: null,
         toUsername: 'Bank',
         amount: txAmount,
-        note: note || '',
-        timestamp: new Date()
+        note: note || ''
       });
-
     } else if (fromType === 'bank') {
       if (!toUserId) return { error: 'Recipient is required' };
       const toPlayer = session.players.find(p => p.user.toString() === toUserId);
@@ -235,29 +242,28 @@ export async function recordTransactionAction(userId, roomCode, data) {
       session.currentBank -= txAmount;
       toPlayer.totalBuyIn += txAmount;
 
-      const txType = toPlayer.totalBuyIn === txAmount ? 'buyin' : 'rebuy';
-
       session.transactions.push({
-        type: txType,
+        type,
         fromType: 'bank',
         from: null,
         fromUsername: 'Bank',
         to: toPlayer.user,
         toUsername: toPlayer.username,
         amount: txAmount,
-        note: note || '',
-        timestamp: new Date()
+        note: note || ''
       });
-
     } else {
-      if (!fromUserId) return { error: 'Source player is required for player transfer' };
-      if (!toUserId) return { error: 'Recipient is required' };
+      // player_transfer
+      if (!fromUserId || !toUserId) return { error: 'Source and recipient are required for transfer' };
       const fromPlayer = session.players.find(p => p.user.toString() === fromUserId);
       const toPlayer = session.players.find(p => p.user.toString() === toUserId);
-      if (!fromPlayer) return { error: 'Source player not found in session' };
-      if (!toPlayer) return { error: 'Recipient player not found in session' };
+      if (!fromPlayer) return { error: 'Source player not found' };
+      if (!toPlayer) return { error: 'Recipient player not found' };
       if (fromPlayer.user.toString() === toPlayer.user.toString()) {
         return { error: 'Cannot transfer to the same player' };
+      }
+      if (txAmount > fromPlayer.totalBuyIn) {
+        warnings.push(`${fromPlayer.username} only has ₹${fromPlayer.totalBuyIn} — buy-in will go negative`);
       }
 
       fromPlayer.totalBuyIn -= txAmount;
@@ -271,8 +277,7 @@ export async function recordTransactionAction(userId, roomCode, data) {
         to: toPlayer.user,
         toUsername: toPlayer.username,
         amount: txAmount,
-        note: note || '',
-        timestamp: new Date()
+        note: note || ''
       });
     }
 
@@ -284,42 +289,41 @@ export async function recordTransactionAction(userId, roomCode, data) {
   }
 }
 
-export async function editTransactionAction(userId, roomCode, transactionId, data) {
+// ─── Edit Transaction ─────────────────────────────────────────────────────────
+export async function editTransactionAction(userId, roomCode, txId, newAmount, newNote) {
   try {
     await connectDB();
     const session = await Session.findOne({ roomCode: roomCode.toUpperCase() });
     if (!session) return { error: 'Session not found' };
     if (session.status === 'ended') return { error: 'Session has ended' };
-    if (session.admin.toString() !== userId) {
-      return { error: 'Only the session admin can edit transactions' };
-    }
+    if (session.admin.toString() !== userId) return { error: 'Only admin can edit transactions' };
 
-    const tx = session.transactions.id(transactionId);
+    const tx = session.transactions.id(txId);
     if (!tx || tx.isDeleted) return { error: 'Transaction not found' };
 
     const oldAmount = tx.amount;
-    const newAmount = Number(data.amount);
-    if (!newAmount || newAmount < 1) return { error: 'Valid amount is required' };
+    const diff = Number(newAmount) - oldAmount;
 
-    const diff = newAmount - oldAmount;
+    if (Number(newAmount) < 1) return { error: 'Amount must be at least ₹1' };
 
+    // Reverse and reapply
     if (tx.type === 'return_to_bank') {
       const fromPlayer = session.players.find(p => p.user.toString() === tx.from.toString());
       if (fromPlayer) fromPlayer.totalBuyIn -= diff;
       session.currentBank += diff;
     } else if (tx.fromType === 'bank') {
-      const toPlayer = session.players.find(p => p.user.toString() === tx.to.toString());
+      const toPlayer = session.players.find(p => tx.to && p.user.toString() === tx.to.toString());
       if (toPlayer) toPlayer.totalBuyIn += diff;
       session.currentBank -= diff;
     } else {
-      const fromPlayer = session.players.find(p => p.user.toString() === tx.from.toString());
-      const toPlayer = session.players.find(p => p.user.toString() === tx.to.toString());
+      const fromPlayer = session.players.find(p => tx.from && p.user.toString() === tx.from.toString());
+      const toPlayer = session.players.find(p => tx.to && p.user.toString() === tx.to.toString());
       if (fromPlayer) fromPlayer.totalBuyIn -= diff;
       if (toPlayer) toPlayer.totalBuyIn += diff;
     }
 
-    tx.amount = newAmount;
-    if (data.note !== undefined) tx.note = data.note;
+    tx.amount = Number(newAmount);
+    if (newNote !== undefined) tx.note = newNote;
 
     await session.save();
     return { session: JSON.parse(JSON.stringify(session)) };
@@ -329,30 +333,30 @@ export async function editTransactionAction(userId, roomCode, transactionId, dat
   }
 }
 
-export async function deleteTransactionAction(userId, roomCode, transactionId) {
+// ─── Delete Transaction ───────────────────────────────────────────────────────
+export async function deleteTransactionAction(userId, roomCode, txId) {
   try {
     await connectDB();
     const session = await Session.findOne({ roomCode: roomCode.toUpperCase() });
     if (!session) return { error: 'Session not found' };
     if (session.status === 'ended') return { error: 'Session has ended' };
-    if (session.admin.toString() !== userId) {
-      return { error: 'Only the session admin can delete transactions' };
-    }
+    if (session.admin.toString() !== userId) return { error: 'Only admin can delete transactions' };
 
-    const tx = session.transactions.id(transactionId);
+    const tx = session.transactions.id(txId);
     if (!tx || tx.isDeleted) return { error: 'Transaction not found' };
 
+    // Reverse the transaction's effect
     if (tx.type === 'return_to_bank') {
-      const fromPlayer = session.players.find(p => p.user.toString() === tx.from.toString());
+      const fromPlayer = session.players.find(p => tx.from && p.user.toString() === tx.from.toString());
       if (fromPlayer) fromPlayer.totalBuyIn += tx.amount;
       session.currentBank -= tx.amount;
     } else if (tx.fromType === 'bank') {
-      const toPlayer = session.players.find(p => p.user.toString() === tx.to.toString());
+      const toPlayer = session.players.find(p => tx.to && p.user.toString() === tx.to.toString());
       if (toPlayer) toPlayer.totalBuyIn -= tx.amount;
       session.currentBank += tx.amount;
     } else {
-      const fromPlayer = session.players.find(p => p.user.toString() === tx.from.toString());
-      const toPlayer = session.players.find(p => p.user.toString() === tx.to.toString());
+      const fromPlayer = session.players.find(p => tx.from && p.user.toString() === tx.from.toString());
+      const toPlayer = session.players.find(p => tx.to && p.user.toString() === tx.to.toString());
       if (fromPlayer) fromPlayer.totalBuyIn += tx.amount;
       if (toPlayer) toPlayer.totalBuyIn -= tx.amount;
     }
@@ -366,6 +370,7 @@ export async function deleteTransactionAction(userId, roomCode, transactionId) {
   }
 }
 
+// ─── End Session ──────────────────────────────────────────────────────────────
 export async function endSessionAction(userId, roomCode, finalStacks) {
   try {
     await connectDB();
@@ -374,9 +379,6 @@ export async function endSessionAction(userId, roomCode, finalStacks) {
     if (session.status === 'ended') return { error: 'Session already ended' };
     if (session.admin.toString() !== userId) {
       return { error: 'Only the session admin can end the session' };
-    }
-    if (!finalStacks || typeof finalStacks !== 'object') {
-      return { error: 'Final stacks are required' };
     }
 
     session.status = 'ended';
@@ -388,36 +390,55 @@ export async function endSessionAction(userId, roomCode, finalStacks) {
       player.finalStack = finalStack;
       const profit = finalStack - player.totalBuyIn;
 
+      // Update global user stats
       const userDoc = await User.findById(player.user);
       if (userDoc) {
-        userDoc.totalProfit = (userDoc.totalProfit || 0) + profit;
-        userDoc.sessionsPlayed = (userDoc.sessionsPlayed || 0) + 1;
-        if (profit > 0) userDoc.sessionsWon = (userDoc.sessionsWon || 0) + 1;
-        if (profit > (userDoc.highestWin || 0)) userDoc.highestWin = profit;
-        if (profit < 0 && Math.abs(profit) > (userDoc.highestLoss || 0)) userDoc.highestLoss = Math.abs(profit);
-        await userDoc.save();
+        const updates = {
+          $inc: {
+            totalProfit: profit,
+            sessionsPlayed: 1,
+            sessionsWon: profit > 0 ? 1 : 0
+          }
+        };
+        // Track highest win/loss
+        if (profit > 0 && profit > (userDoc.highestWin || 0)) {
+          updates.$set = { ...(updates.$set || {}), highestWin: profit };
+        }
+        if (profit < 0 && profit < (userDoc.highestLoss || 0)) {
+          updates.$set = { ...(updates.$set || {}), highestLoss: profit };
+        }
+        await User.findByIdAndUpdate(player.user, updates);
       }
 
+      // Update group member stats
       if (session.group) {
         const group = await Group.findById(session.group);
         if (group) {
-          let memberStat = group.memberStats.find(s => s.user.toString() === pId);
-          if (!memberStat) {
+          const statIdx = group.memberStats.findIndex(s => s.user.toString() === pId);
+          if (statIdx >= 0) {
+            group.memberStats[statIdx].sessionsPlayed += 1;
+            group.memberStats[statIdx].totalProfit += profit;
+            if (profit > 0) {
+              group.memberStats[statIdx].sessionsWon += 1;
+              if (profit > group.memberStats[statIdx].highestWin) {
+                group.memberStats[statIdx].highestWin = profit;
+              }
+            }
+            if (profit < 0 && profit < group.memberStats[statIdx].highestLoss) {
+              group.memberStats[statIdx].highestLoss = profit;
+            }
+          } else {
             group.memberStats.push({
               user: player.user,
-              sessionsPlayed: 0,
-              sessionsWon: 0,
-              totalProfit: 0,
-              highestWin: 0,
-              highestLoss: 0
+              username: player.username,
+              avatarColor: player.avatarColor,
+              sessionsPlayed: 1,
+              sessionsWon: profit > 0 ? 1 : 0,
+              totalProfit: profit,
+              highestWin: profit > 0 ? profit : 0,
+              highestLoss: profit < 0 ? profit : 0
             });
-            memberStat = group.memberStats[group.memberStats.length - 1];
           }
-          memberStat.sessionsPlayed += 1;
-          if (profit > 0) memberStat.sessionsWon += 1;
-          memberStat.totalProfit += profit;
-          if (profit > memberStat.highestWin) memberStat.highestWin = profit;
-          if (profit < 0 && Math.abs(profit) > memberStat.highestLoss) memberStat.highestLoss = Math.abs(profit);
           await group.save();
         }
       }
@@ -439,5 +460,16 @@ export async function endSessionAction(userId, roomCode, finalStacks) {
   } catch (err) {
     console.error('End session error:', err);
     return { error: 'Server error ending session' };
+  }
+}
+
+// ─── Helper: ensure member stat entry exists in group ─────────────────────────
+async function _ensureMemberStat(groupId, userId, username, avatarColor) {
+  const group = await Group.findById(groupId);
+  if (!group) return;
+  const exists = group.memberStats.some(s => s.user.toString() === userId);
+  if (!exists) {
+    group.memberStats.push({ user: userId, username, avatarColor });
+    await group.save();
   }
 }

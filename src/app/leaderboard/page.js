@@ -1,6 +1,12 @@
-// src/app/leaderboard/page.js
-import { redirect } from 'next/navigation';
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function LeaderboardPage() {
-  redirect('/groups');
+  const router = useRouter();
+  useEffect(() => {
+    router.replace('/groups');
+  }, [router]);
+  return null;
 }
