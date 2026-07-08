@@ -58,10 +58,6 @@ const playerInSessionSchema = new mongoose.Schema({
     type: String,
     default: '#c9a84c'
   },
-  currentStack: {
-    type: Number,
-    default: 0
-  },
   totalBuyIn: {
     type: Number,
     default: 0
@@ -130,7 +126,7 @@ const sessionSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 sessionSchema.virtual('totalInPlay').get(function() {
-  return this.players.reduce((sum, p) => sum + p.currentStack, 0) + this.currentBank;
+  return this.players.reduce((sum, p) => sum + p.totalBuyIn, 0) + this.currentBank;
 });
 
 export default mongoose.models.Session || mongoose.model('Session', sessionSchema);

@@ -76,7 +76,7 @@ export default function SessionRoomPage() {
 
   const isAdmin = session.admin?.toString() === user._id?.toString() || session.admin === user._id;
   const isActive = session.status === 'active';
-  const totalInPlay = session.players.reduce((s, p) => s + (p.currentStack || 0), 0) + (session.currentBank || 0);
+  const totalInPlay = session.players.reduce((s, p) => s + (p.totalBuyIn || 0), 0) + (session.currentBank || 0);
   const isBalanced = Math.abs(totalInPlay - session.initialBank) < 0.01;
 
   return (
@@ -213,8 +213,9 @@ export default function SessionRoomPage() {
       {/* Players Grid */}
       <div className="players-grid">
         {session.players.map(player => {
-          const stack = session.status === 'ended' && player.finalStack != null ? player.finalStack : player.currentStack;
-          const profit = stack - (player.totalBuyIn || 0);
+          const hasEnded = session.status === 'ended' && player.finalStack != null;
+          const stack = hasEnded ? player.finalStack : null;
+          const profit = hasEnded ? stack - (player.totalBuyIn || 0) : null;
           const isMe = player.user?.toString() === user._id?.toString() || player.user === user._id;
           const isPlayerAdmin = session.admin?.toString() === player.user?.toString() || session.admin === player.user;
 
@@ -235,15 +236,17 @@ export default function SessionRoomPage() {
                 </div>
               </div>
 
-              <div className="player-stack" style={{ color: stack > 0 ? '#22c55e' : stack < 0 ? '#ef4444' : 'var(--text-secondary)' }}>
-                {formatINR(stack)}
+              <div className="player-stack" style={{ color: !hasEnded ? 'var(--text-secondary)' : stack > 0 ? '#22c55e' : stack < 0 ? '#ef4444' : 'var(--text-secondary)' }}>
+                {hasEnded ? formatINR(stack) : formatINR(player.totalBuyIn || 0)}
               </div>
 
               <div className="player-stats">
                 <span>Buy-in: {formatINR(player.totalBuyIn || 0)}</span>
-                <span style={{ color: profit > 0 ? '#22c55e' : profit < 0 ? '#ef4444' : 'var(--text-muted)' }}>
-                  {profit > 0 ? '+' : ''}{formatINR(profit)}
-                </span>
+                {hasEnded && (
+                  <span style={{ color: profit > 0 ? '#22c55e' : profit < 0 ? '#ef4444' : 'var(--text-muted)' }}>
+                    {profit > 0 ? '+' : ''}{formatINR(profit)}
+                  </span>
+                )}
               </div>
 
               {isAdmin && isActive && (
@@ -393,7 +396,7 @@ function TransactionModal({ session, userId, preSelectedTo, onClose, onSuccess, 
                   <option value="">- Select player -</option>
                   {session.players.map(p => (
                     <option key={p.user} value={p.user}>
-                      {p.username} (Stack: ₹{Number(p.currentStack || 0).toLocaleString('en-IN')})
+                      {p.username} (Buy-in: ₹{Number(p.totalBuyIn || 0).toLocaleString('en-IN')})
                     </option>
                   ))}
                 </select>
@@ -408,7 +411,7 @@ function TransactionModal({ session, userId, preSelectedTo, onClose, onSuccess, 
                   .filter(p => form.fromType === 'bank' || p.user !== form.fromUserId)
                   .map(p => (
                     <option key={p.user} value={p.user}>
-                      {p.username} (Stack: ₹{Number(p.currentStack || 0).toLocaleString('en-IN')})
+                      {p.username} (Buy-in: ₹{Number(p.totalBuyIn || 0).toLocaleString('en-IN')})
                     </option>
                   ))}
               </select>
@@ -428,7 +431,7 @@ function TransactionModal({ session, userId, preSelectedTo, onClose, onSuccess, 
               />
               {fromPlayer && form.fromType === 'player' && (
                 <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px', fontFamily: 'var(--font-mono)' }}>
-                  {fromPlayer.username} has ₹{Number(fromPlayer.currentStack || 0).toLocaleString('en-IN')}
+                  {fromPlayer.username}'s buy-in is ₹{Number(fromPlayer.totalBuyIn || 0).toLocaleString('en-IN')}
                 </p>
               )}
             </div>
@@ -463,7 +466,7 @@ function TransactionModal({ session, userId, preSelectedTo, onClose, onSuccess, 
 function EndSessionModal({ session, userId, onClose, onSuccess, onError }) {
   const router = useRouter();
   const [finalStacks, setFinalStacks] = useState(
-    Object.fromEntries(session.players.map(p => [p.user, p.currentStack || 0]))
+    Object.fromEntries(session.players.map(p => [p.user, 0]))
   );
   const [loading, setLoading] = useState(false);
 
@@ -503,7 +506,7 @@ function EndSessionModal({ session, userId, onClose, onSuccess, onError }) {
                 <div style={{ flex: 1 }}>
                   <div style={{ fontFamily: 'var(--font-display)', fontWeight: '700', fontSize: '14px' }}>{p.username}</div>
                   <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                    Buy-in: ₹{Number(p.totalBuyIn || 0).toLocaleString('en-IN')} | Current: ₹{Number(p.currentStack || 0).toLocaleString('en-IN')}
+                    Buy-in: ₹{Number(p.totalBuyIn || 0).toLocaleString('en-IN')}
                   </div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>

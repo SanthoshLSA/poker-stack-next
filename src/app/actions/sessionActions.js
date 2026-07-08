@@ -58,7 +58,6 @@ export async function createSessionAction(userId, data) {
         user: userId,
         username: creatorUser.username,
         avatarColor: creatorUser.avatarColor,
-        currentStack: 0,
         totalBuyIn: 0
       }]
     });
@@ -94,7 +93,6 @@ export async function joinSessionAction(userId, roomCode) {
       user: userId,
       username: userObj.username,
       avatarColor: userObj.avatarColor,
-      currentStack: 0,
       totalBuyIn: 0
     });
 
@@ -175,7 +173,6 @@ export async function recordTransactionAction(userId, roomCode, data) {
         warnings.push(`Bank only has ₹${session.currentBank} but transaction is ₹${txAmount}`);
       }
       session.currentBank -= txAmount;
-      toPlayer.currentStack += txAmount;
       toPlayer.totalBuyIn += txAmount;
 
       session.transactions.push({
@@ -196,12 +193,10 @@ export async function recordTransactionAction(userId, roomCode, data) {
         return { error: 'Cannot transfer to the same player' };
       }
 
-      if (txAmount > fromPlayer.currentStack) {
-        warnings.push(`${fromPlayer.username} only has ₹${fromPlayer.currentStack} but transfer is ₹${txAmount}. Stack will go negative.`);
-      }
-
-      fromPlayer.currentStack -= txAmount;
-      toPlayer.currentStack += txAmount;
+      // Money moves between players, not chips: sender's buy-in decreases
+      // (they've effectively un-bought-in by that amount), receiver's buy-in
+      // increases. Total chips in play (bank + sum of buy-ins) is unchanged.
+      fromPlayer.totalBuyIn -= txAmount;
       toPlayer.totalBuyIn += txAmount;
 
       session.transactions.push({
@@ -243,7 +238,7 @@ export async function endSessionAction(userId, roomCode, finalStacks) {
 
     for (const player of session.players) {
       const pId = player.user.toString();
-      const finalStack = finalStacks[pId] !== undefined ? Number(finalStacks[pId]) : player.currentStack;
+      const finalStack = finalStacks[pId] !== undefined ? Number(finalStacks[pId]) : 0;
 
       player.finalStack = finalStack;
       const profit = finalStack - player.totalBuyIn;
