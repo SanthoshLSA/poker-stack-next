@@ -121,80 +121,82 @@ export default function GroupsPage() {
 
         {/* Leaderboard */}
         <div className="card">
-          <div className="card-body">
-            <h3 className="card-title" style={{ marginBottom: '20px' }}>♦ Group Leaderboard</h3>
+          <div className="card-body" style={{ padding: '16px 12px' }}>
+            <h3 className="card-title" style={{ marginBottom: '20px', paddingLeft: '8px' }}>♦ Group Leaderboard</h3>
 
             {sorted.length === 0 ? (
               <p style={{ color: 'var(--text-muted)', fontSize: '14px', textAlign: 'center', padding: '20px' }}>No stats yet. Play some sessions!</p>
             ) : (
-              <div>
-                {/* Header row */}
-                <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr 90px 70px 70px 90px 90px', gap: '8px', padding: '0 12px 10px', borderBottom: '1px solid var(--border-subtle)', marginBottom: '4px' }}>
-                  {['#', 'Player', 'Total P/L', 'Sessions', 'Wins', 'Best Win', 'Worst Loss'].map(h => (
-                    <div key={h} style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.1em', textAlign: h === 'Player' || h === '#' ? 'left' : 'right' }}>{h}</div>
-                  ))}
-                </div>
+              <div className="leaderboard-table-container">
+                <div style={{ minWidth: '700px' }}>
+                  {/* Header row */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr 100px 80px 80px 100px 100px', gap: '8px', padding: '0 12px 10px', borderBottom: '1px solid var(--border-subtle)', marginBottom: '4px' }}>
+                    {['#', 'Player', 'Total P/L', 'Sessions', 'Wins', 'Best Win', 'Worst Loss'].map(h => (
+                      <div key={h} style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.1em', textAlign: h === 'Player' || h === '#' ? 'left' : 'right' }}>{h}</div>
+                    ))}
+                  </div>
 
-                {sorted.map((s, i) => {
-                  const isMe = s.user === user._id || s.user?.toString() === user._id;
-                  const winRate = s.sessionsPlayed > 0 ? Math.round(((s.sessionsWon || 0) / s.sessionsPlayed) * 100) : 0;
+                  {sorted.map((s, i) => {
+                    const isMe = s.user === user._id || s.user?.toString() === user._id;
+                    const winRate = s.sessionsPlayed > 0 ? Math.round(((s.sessionsWon || 0) / s.sessionsPlayed) * 100) : 0;
 
-                  return (
-                    <div key={String(s.user)} style={{
-                      display: 'grid', gridTemplateColumns: '40px 1fr 90px 70px 70px 90px 90px',
-                      gap: '8px', padding: '12px',
-                      background: isMe ? 'rgba(201,168,76,0.04)' : 'transparent',
-                      borderRadius: 'var(--radius-md)',
-                      borderBottom: '1px solid var(--border-subtle)',
-                      alignItems: 'center'
-                    }}>
-                      {/* Rank */}
-                      <div style={{ textAlign: 'left' }}>
-                        {i < 3
-                          ? <span style={{ fontSize: '18px' }}>{medals[i]}</span>
-                          : <span style={{ fontFamily: 'var(--font-display)', fontSize: '13px', fontWeight: '700', color: 'var(--text-muted)' }}>#{i + 1}</span>}
-                      </div>
-
-                      {/* Player */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                        <div className="avatar avatar-sm" style={{ background: s.avatarColor || '#c9a84c', color: '#0a0a0f', flexShrink: 0 }}>
-                          {s.username?.charAt(0).toUpperCase()}
+                    return (
+                      <div key={String(s.user)} style={{
+                        display: 'grid', gridTemplateColumns: '40px 1fr 100px 80px 80px 100px 100px',
+                        gap: '8px', padding: '12px',
+                        background: isMe ? 'rgba(201,168,76,0.04)' : 'transparent',
+                        borderRadius: 'var(--radius-md)',
+                        borderBottom: '1px solid var(--border-subtle)',
+                        alignItems: 'center'
+                      }}>
+                        {/* Rank */}
+                        <div style={{ textAlign: 'left' }}>
+                          {i < 3
+                            ? <span style={{ fontSize: '18px' }}>{medals[i]}</span>
+                            : <span style={{ fontFamily: 'var(--font-display)', fontSize: '13px', fontWeight: '700', color: 'var(--text-muted)' }}>#{i + 1}</span>}
                         </div>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontFamily: 'var(--font-display)', fontSize: '14px', fontWeight: '700', color: isMe ? 'var(--color-gold)' : 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {s.username} {isMe && '(You)'}
+
+                        {/* Player */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                          <div className="avatar avatar-sm" style={{ background: s.avatarColor || '#c9a84c', color: '#0a0a0f', flexShrink: 0 }}>
+                            {s.username?.charAt(0).toUpperCase()}
                           </div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '1px' }}>{winRate}% win rate</div>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontFamily: 'var(--font-display)', fontSize: '14px', fontWeight: '700', color: isMe ? 'var(--color-gold)' : 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {s.username} {isMe && '(You)'}
+                            </div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '1px' }}>{winRate}% win rate</div>
+                          </div>
+                        </div>
+
+                        {/* Total P/L */}
+                        <div style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: '900', color: (s.totalProfit || 0) >= 0 ? '#22c55e' : '#ef4444' }}>
+                          {formatPL(s.totalProfit)}
+                        </div>
+
+                        {/* Sessions */}
+                        <div style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontSize: '14px', fontWeight: '700', color: 'var(--color-gold)' }}>
+                          {s.sessionsPlayed || 0}
+                        </div>
+
+                        {/* Wins */}
+                        <div style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontSize: '14px', fontWeight: '700', color: '#22c55e' }}>
+                          {s.sessionsWon || 0}
+                        </div>
+
+                        {/* Best win */}
+                        <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: '13px', color: '#22c55e' }}>
+                          {(s.highestWin || 0) > 0 ? '+' + formatINR(s.highestWin) : '—'}
+                        </div>
+
+                        {/* Worst loss */}
+                        <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: '13px', color: '#ef4444' }}>
+                          {(s.highestLoss || 0) < 0 ? '-' + formatINR(Math.abs(s.highestLoss)) : '—'}
                         </div>
                       </div>
-
-                      {/* Total P/L */}
-                      <div style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: '900', color: (s.totalProfit || 0) >= 0 ? '#22c55e' : '#ef4444' }}>
-                        {formatPL(s.totalProfit)}
-                      </div>
-
-                      {/* Sessions */}
-                      <div style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontSize: '14px', fontWeight: '700', color: 'var(--color-gold)' }}>
-                        {s.sessionsPlayed || 0}
-                      </div>
-
-                      {/* Wins */}
-                      <div style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontSize: '14px', fontWeight: '700', color: '#22c55e' }}>
-                        {s.sessionsWon || 0}
-                      </div>
-
-                      {/* Best win */}
-                      <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: '13px', color: '#22c55e' }}>
-                        {(s.highestWin || 0) > 0 ? '+' + formatINR(s.highestWin) : '—'}
-                      </div>
-
-                      {/* Worst loss */}
-                      <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: '13px', color: '#ef4444' }}>
-                        {(s.highestLoss || 0) < 0 ? '-' + formatINR(Math.abs(s.highestLoss)) : '—'}
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>

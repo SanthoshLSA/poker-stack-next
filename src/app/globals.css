@@ -1327,14 +1327,25 @@ img { max-width: 100%; height: auto; }
   .navbar-links { display: none; }
   .navbar-menu-btn { display: flex; }
   .page { padding: 24px 16px; }
-  .session-room { padding: 16px; }
-  .card-body { padding: 18px; }
-  .players-grid { grid-template-columns: 1fr 1fr; }
-  .modal { max-width: 100%; border-radius: var(--radius-lg) var(--radius-lg) 0 0; align-self: flex-end; }
+  .session-room { padding: 12px; }
+  .card-body { padding: 16px; }
+  .players-grid { grid-template-columns: 1fr; gap: 10px; }
+  .modal { max-width: 100%; border-radius: var(--radius-lg) var(--radius-lg) 0 0; align-self: flex-end; margin-bottom: 0; }
+  .page { padding: 20px 12px; }
+  /* Make horizontal tables scrollable on small screens */
+  .leaderboard-table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .leaderboard-grid-header, .leaderboard-grid-row {
+    min-width: 580px;
+  }
 }
 
 @media (max-width: 480px) {
   .players-grid { grid-template-columns: 1fr; }
-  .landing-actions { flex-direction: column; align-items: center; }
+  .landing-actions { flex-direction: column; align-items: center; gap: 10px; }
   .btn-lg { width: 100%; }
+  .btn { width: 100%; justify-content: center; }
+  .navbar-actions .btn { width: auto; }
 }

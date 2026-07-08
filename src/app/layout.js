@@ -18,9 +18,23 @@ export default function RootLayout({ children }) {
       <body>
         <AuthProvider>
           <Navbar />
-          <main>
+          <main style={{ minHeight: 'calc(100vh - 120px)' }}>
             {children}
           </main>
+          <footer style={{
+            textAlign: 'center',
+            padding: '24px 16px',
+            fontSize: '12px',
+            color: 'var(--text-muted)',
+            borderTop: '1px solid var(--border-subtle)',
+            fontFamily: 'var(--font-display)',
+            letterSpacing: '0.05em',
+            background: 'rgba(7, 8, 13, 0.5)',
+            position: 'relative',
+            zIndex: 10
+          }}>
+            PokerStack Management App built by <span style={{ color: 'var(--color-gold)', fontWeight: '600' }}>Santhosh</span>
+          </footer>
         </AuthProvider>
       </body>
     </html>
