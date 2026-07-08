@@ -35,6 +35,14 @@ const userSchema = new mongoose.Schema({
   sessionsWon: {
     type: Number,
     default: 0
+  },
+  highestWin: {
+    type: Number,
+    default: 0
+  },
+  highestLoss: {
+    type: Number,
+    default: 0
   }
 }, { timestamps: true });
 
@@ -51,6 +59,8 @@ userSchema.methods.toPublicJSON = function() {
     totalProfit: this.totalProfit,
     sessionsPlayed: this.sessionsPlayed,
     sessionsWon: this.sessionsWon,
+    highestWin: this.highestWin,
+    highestLoss: this.highestLoss,
     createdAt: this.createdAt
   };
 };

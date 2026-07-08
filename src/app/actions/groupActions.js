@@ -1,11 +1,10 @@
+// src/app/actions/groupActions.js
 'use server';
 
 import { connectDB } from '../lib/db';
 import Group from '../models/Group';
 import User from '../models/User';
-import PlayerResult from '../models/PlayerResult';
 
-// Helper to generate a 6-character random code
 function generateInviteCode() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let code = '';
@@ -35,7 +34,15 @@ export async function createGroupAction(userId, data) {
       description: description?.trim(),
       inviteCode,
       creator: userId,
-      members: [userId]
+      members: [userId],
+      memberStats: [{
+        user: userId,
+        sessionsPlayed: 0,
+        sessionsWon: 0,
+        highestWin: 0,
+        highestLoss: 0,
+        totalProfit: 0
+      }]
     });
 
     const populated = await Group.findById(group._id).populate('creator', 'username avatarColor');
@@ -73,6 +80,19 @@ export async function joinGroupAction(userId, inviteCode) {
     }
 
     group.members.push(userId);
+
+    const alreadyHasStats = group.memberStats.some(s => s.user.toString() === userId);
+    if (!alreadyHasStats) {
+      group.memberStats.push({
+        user: userId,
+        sessionsPlayed: 0,
+        sessionsWon: 0,
+        highestWin: 0,
+        highestLoss: 0,
+        totalProfit: 0
+      });
+    }
+
     await group.save();
 
     const populated = await Group.findById(group._id)
@@ -85,75 +105,28 @@ export async function joinGroupAction(userId, inviteCode) {
   }
 }
 
-export async function getGroupDetailAction(userId, groupId) {
+export async function getGroupByIdAction(groupId) {
   try {
     await connectDB();
     const group = await Group.findById(groupId)
       .populate('creator', 'username avatarColor')
-      .populate('members', 'username avatarColor totalProfit sessionsPlayed isPrivate');
+      .populate('members', 'username avatarColor')
+      .populate('memberStats.user', 'username avatarColor name');
 
     if (!group) return { error: 'Group not found' };
 
-    const isMember = group.members.some(m => m._id.toString() === userId);
-    if (!isMember) return { error: 'You are not a member of this group' };
-
-    return { group: JSON.parse(JSON.stringify(group)) };
-  } catch (err) {
-    return { error: 'Server error fetching group details' };
-  }
-}
-
-export async function getGroupLeaderboardAction(userId, groupId) {
-  try {
-    await connectDB();
-    const group = await Group.findById(groupId).populate('members', '_id username');
-    if (!group) return { error: 'Group not found' };
-
-    const isMember = group.members.some(m => m._id.toString() === userId);
-    if (!isMember) return { error: 'Not a member of this group' };
-
-    const memberIds = group.members.map(m => m._id);
-
-    const stats = await PlayerResult.aggregate([
-      { $match: { group: group._id, user: { $in: memberIds } } },
-      {
-        $group: {
-          _id: '$user',
-          username: { $first: '$username' },
-          totalProfit: { $sum: '$profit' },
-          sessionsPlayed: { $sum: 1 },
-          sessionsWon: { $sum: { $cond: [{ $gt: ['$profit', 0] }, 1, 0] } },
-          totalBuyIn: { $sum: '$buyIn' },
-          totalCashOut: { $sum: '$cashOut' }
-        }
-      },
-      { $sort: { totalProfit: -1 } }
-    ]);
-
-    const users = await User.find({ _id: { $in: memberIds } }).select('_id isPrivate avatarColor');
-    const privacyMap = {};
-    users.forEach(u => {
-      privacyMap[u._id.toString()] = { isPrivate: u.isPrivate, avatarColor: u.avatarColor };
-    });
-
-    const leaderboard = stats.map((s, i) => {
-      const priv = privacyMap[s._id.toString()] || {};
+    const formattedGroup = group.toObject();
+    formattedGroup.members = formattedGroup.members.map(member => {
+      const stats = formattedGroup.memberStats.find(s => s.user._id.toString() === member._id.toString());
       return {
-        rank: i + 1,
-        userId: s._id.toString(),
-        username: s.username,
-        avatarColor: priv.avatarColor,
-        totalProfit: priv.isPrivate && s._id.toString() !== userId ? null : s.totalProfit,
-        sessionsPlayed: s.sessionsPlayed,
-        sessionsWon: s.sessionsWon,
-        isPrivate: priv.isPrivate
+        ...member,
+        stats: stats || { sessionsPlayed: 0, sessionsWon: 0, highestWin: 0, highestLoss: 0 }
       };
     });
 
-    return { leaderboard, groupName: group.name };
+    return { group: JSON.parse(JSON.stringify(formattedGroup)) };
   } catch (err) {
-    console.error(err);
-    return { error: 'Server error fetching group leaderboard' };
+    return { error: 'Server error fetching group details' };
   }
 }
 

@@ -4,17 +4,29 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { createSessionAction } from '../../actions/sessionActions';
+import { getMyGroupsAction } from '../../actions/groupActions';
 
 export default function CreateSessionPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
-  const [form, setForm] = useState({ name: '', initialBank: '' });
+  const [form, setForm] = useState({ name: '', initialBank: '', groupId: '' });
+  const [groups, setGroups] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [groupsLoading, setGroupsLoading] = useState(true);
 
   useEffect(() => {
     if (!authLoading && !user) router.push('/login');
   }, [user, authLoading, router]);
+
+  useEffect(() => {
+    if (user) {
+      getMyGroupsAction(user._id).then(res => {
+        if (res.groups) setGroups(res.groups);
+        setGroupsLoading(false);
+      });
+    }
+  }, [user]);
 
   if (authLoading || !user) return null;
 
@@ -25,11 +37,13 @@ export default function CreateSessionPage() {
     setError('');
     if (!form.name || form.name.trim().length < 2) { setError('Session name must be at least 2 characters'); return; }
     if (!form.initialBank || Number(form.initialBank) < 1) { setError('Initial bank must be at least ₹1'); return; }
+    if (!form.groupId) { setError('You must select a group to create a session'); return; }
 
     setLoading(true);
     const result = await createSessionAction(user._id, {
       name: form.name,
-      initialBank: Number(form.initialBank)
+      initialBank: Number(form.initialBank),
+      groupId: form.groupId
     });
 
     if (result.error) {
@@ -57,61 +71,91 @@ export default function CreateSessionPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit}>
-            <div className="form-group">
-              <label className="form-label">Session Name ♠</label>
-              <input
-                id="name"
-                name="name"
-                type="text"
-                className="form-input"
-                placeholder="Friday Night Grind"
-                value={form.name}
-                onChange={handleChange}
-                maxLength={50}
-                required
-              />
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
-                Give your session a memorable name
+          {!groupsLoading && groups.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '30px 0' }}>
+              <div style={{ fontSize: '40px', marginBottom: '12px' }}>🃏</div>
+              <p style={{ color: 'var(--text-secondary)', marginBottom: '20px' }}>
+                You need to be in a group before creating a session.
               </p>
+              <button className="btn btn-primary" onClick={() => router.push('/groups')}>
+                Go to Groups
+              </button>
             </div>
-
-            <div className="form-group">
-              <label className="form-label">Initial Bank (₹) ♦</label>
-              <input
-                id="initialBank"
-                name="initialBank"
-                type="number"
-                className="form-input"
-                placeholder="e.g., 5000"
-                value={form.initialBank}
-                onChange={handleChange}
-                min={1}
-                step={1}
-                required
-              />
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
-                Total chips in play. Used to verify conservation throughout the session.
-              </p>
-            </div>
-
-            {/* Info box */}
-            <div style={{ padding: '14px 16px', background: 'rgba(201,168,76,0.05)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 'var(--radius-md)', marginBottom: '20px' }}>
-              <div style={{ fontFamily: 'var(--font-display)', fontSize: '12px', fontWeight: '700', color: 'var(--color-gold)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '6px' }}>
-                How it works
+          ) : (
+            <form onSubmit={handleSubmit}>
+              <div className="form-group">
+                <label className="form-label">Group ♣</label>
+                {groupsLoading ? (
+                  <div style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Loading groups...</div>
+                ) : (
+                  <select
+                    name="groupId"
+                    className="form-input"
+                    value={form.groupId}
+                    onChange={handleChange}
+                    required
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <option value="">Select a group...</option>
+                    {groups.map(g => (
+                      <option key={g._id} value={g._id}>{g.name}</option>
+                    ))}
+                  </select>
+                )}
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                  Sessions belong to a group — only members can view them
+                </p>
               </div>
-              <ul style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.7', paddingLeft: '16px' }}>
-                <li>You'll get a unique 6-character room code</li>
-                <li>Share it with players to join your session</li>
-                <li>As admin, record all buy-ins and rebuys</li>
-                <li>End the session to save final results</li>
-              </ul>
-            </div>
 
-            <button type="submit" className="btn btn-primary w-full" disabled={loading}>
-              {loading ? 'Creating...' : '♠ Create Session'}
-            </button>
-          </form>
+              <div className="form-group">
+                <label className="form-label">Session Name ♠</label>
+                <input
+                  name="name"
+                  type="text"
+                  className="form-input"
+                  placeholder="Friday Night Grind"
+                  value={form.name}
+                  onChange={handleChange}
+                  maxLength={50}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Initial Bank (₹) ♦</label>
+                <input
+                  name="initialBank"
+                  type="number"
+                  className="form-input"
+                  placeholder="e.g., 5000"
+                  value={form.initialBank}
+                  onChange={handleChange}
+                  min={1}
+                  step={1}
+                  required
+                />
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                  Total chips in play. Each player gets ₹200 automatically on joining.
+                </p>
+              </div>
+
+              <div style={{ padding: '14px 16px', background: 'rgba(201,168,76,0.05)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 'var(--radius-md)', marginBottom: '20px' }}>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: '12px', fontWeight: '700', color: 'var(--color-gold)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '6px' }}>
+                  How it works
+                </div>
+                <ul style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.7', paddingLeft: '16px' }}>
+                  <li>Session is private to your group members only</li>
+                  <li>Every player gets ₹200 from the bank on joining</li>
+                  <li>Share the room code with group members to join</li>
+                  <li>As admin, record buy-ins, rebuys and returns</li>
+                </ul>
+              </div>
+
+              <button type="submit" className="btn btn-primary w-full" disabled={loading || groupsLoading}>
+                {loading ? 'Creating...' : '♠ Create Session'}
+              </button>
+            </form>
+          )}
         </div>
       </div>
     </div>

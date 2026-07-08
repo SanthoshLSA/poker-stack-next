@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
 import { getMySessionsAction, joinSessionAction } from '../actions/sessionActions';
+import { getMyGroupsAction } from '../actions/groupActions';
 
-const formatINR = (n) => '₹' + Number(n).toLocaleString('en-IN');
+const formatINR = (n) => '₹' + Number(n || 0).toLocaleString('en-IN');
 const formatRelativeTime = (dateStr) => {
   if (!dateStr) return '';
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -19,10 +20,20 @@ const formatRelativeTime = (dateStr) => {
   return 'Just now';
 };
 
+// Get this user's P/L for an ended session
+function getMyProfitLoss(session, userId) {
+  const player = (session.players || []).find(
+    p => p.user === userId || p.user?.toString?.() === userId
+  );
+  if (!player || player.finalStack == null) return null;
+  return player.finalStack - (player.totalBuyIn || 0);
+}
+
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [sessions, setSessions] = useState([]);
+  const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [joinCode, setJoinCode] = useState('');
   const [joining, setJoining] = useState(false);
@@ -34,9 +45,13 @@ export default function DashboardPage() {
       return;
     }
     if (user) {
-      getMySessionsAction(user._id)
-        .then(res => {
-          if (!res.error) setSessions(res.sessions);
+      Promise.all([
+        getMySessionsAction(user._id),
+        getMyGroupsAction(user._id)
+      ])
+        .then(([sessionsRes, groupsRes]) => {
+          if (!sessionsRes.error) setSessions(sessionsRes.sessions);
+          if (!groupsRes.error) setGroups(groupsRes.groups);
         })
         .finally(() => setLoading(false));
     }
@@ -81,13 +96,27 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      {/* Stats row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px', marginBottom: '32px' }}>
+      {/* Overall user stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px', marginBottom: '20px' }}>
         {[
           { label: 'Total P/L', value: formatINR(user.totalProfit || 0), color: (user.totalProfit || 0) >= 0 ? '#22c55e' : '#ef4444' },
           { label: 'Sessions Played', value: user.sessionsPlayed || 0, color: 'var(--color-gold)' },
           { label: 'Sessions Won', value: user.sessionsWon || 0, color: '#22c55e' },
           { label: 'Win Rate', value: user.sessionsPlayed ? Math.round((user.sessionsWon / user.sessionsPlayed) * 100) + '%' : '—', color: 'var(--text-secondary)' }
+        ].map(s => (
+          <div key={s.label} className="card">
+            <div className="card-body" style={{ padding: '18px 20px' }}>
+              <div className="stat-label">{s.label}</div>
+              <div className="stat-value" style={{ color: s.color, marginTop: '6px', fontSize: '22px' }}>{s.value}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px', marginBottom: '32px' }}>
+        {[
+          { label: 'Highest Win', value: formatINR(user.highestWin || 0), color: '#22c55e' },
+          { label: 'Highest Loss', value: formatINR(user.highestLoss || 0), color: '#ef4444' }
         ].map(s => (
           <div key={s.label} className="card">
             <div className="card-body" style={{ padding: '18px 20px' }}>
@@ -120,6 +149,64 @@ export default function DashboardPage() {
           {joinError && <p className="form-error" style={{ marginTop: '8px' }}>✕ {joinError}</p>}
         </div>
       </div>
+
+      {/* Your Groups */}
+      <section style={{ marginBottom: '32px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-secondary)' }}>
+            Your Groups
+          </h2>
+          <Link href="/groups" className="btn btn-ghost btn-sm">Manage Groups →</Link>
+        </div>
+
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
+            <div className="loading-spinner" style={{ margin: '0 auto 12px' }} />
+          </div>
+        ) : groups.length === 0 ? (
+          <div className="card">
+            <div className="card-body" style={{ textAlign: 'center', padding: '32px 20px' }}>
+              <p style={{ color: 'var(--text-muted)', marginBottom: '16px', fontSize: '14px' }}>
+                You're not in any groups yet. Join or create one to start a session.
+              </p>
+              <Link href="/groups" className="btn btn-primary btn-sm">♥ Go to Groups</Link>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '14px' }}>
+            {groups.map(g => {
+              const myStat = (g.memberStats || []).find(
+                s => s.user === user._id || s.user?._id === user._id || s.user?.toString?.() === user._id
+              );
+              return (
+                <Link key={g._id} href={`/groups/${g._id}`} style={{ textDecoration: 'none' }}>
+                  <div className="card" style={{ cursor: 'pointer' }}>
+                    <div className="card-body">
+                      <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '10px' }}>
+                        ♥ {g.name}
+                      </div>
+                      <div style={{ display: 'flex', gap: '10px', fontSize: '12px' }}>
+                        <div style={{ flex: 1, textAlign: 'center', padding: '8px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ fontFamily: 'var(--font-display)', fontWeight: '700', color: myStat?.totalProfit >= 0 ? '#22c55e' : '#ef4444' }}>
+                            {formatINR(myStat?.totalProfit || 0)}
+                          </div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: '10px', marginTop: '2px' }}>Your P/L</div>
+                        </div>
+                        <div style={{ flex: 1, textAlign: 'center', padding: '8px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ fontFamily: 'var(--font-display)', fontWeight: '700', color: 'var(--color-gold)' }}>
+                            {g.members?.length || 0}
+                          </div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: '10px', marginTop: '2px' }}>Members</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       {/* Sessions */}
       {loading ? (
@@ -170,6 +257,7 @@ export default function DashboardPage() {
 function SessionCard({ session, userId }) {
   const isAdmin = session.admin === userId || session.admin?._id === userId;
   const isActive = session.status === 'active';
+  const myPL = !isActive ? getMyProfitLoss(session, userId) : null;
 
   return (
     <Link href={`/session/${session.roomCode}`} style={{ textDecoration: 'none' }}>
@@ -187,25 +275,39 @@ function SessionCard({ session, userId }) {
             </span>
           </div>
 
-          <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
-            <div style={{ flex: 1, textAlign: 'center', padding: '10px', background: 'rgba(201,168,76,0.06)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '18px', fontWeight: '700', color: 'var(--color-gold)', letterSpacing: '0.15em' }}>
-                {session.roomCode}
+          {isActive ? (
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+              <div style={{ flex: 1, textAlign: 'center', padding: '10px', background: 'rgba(201,168,76,0.06)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '18px', fontWeight: '700', color: 'var(--color-gold)', letterSpacing: '0.15em' }}>
+                  {session.roomCode}
+                </div>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: '2px', fontFamily: 'var(--font-display)' }}>Room</div>
               </div>
-              <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: '2px', fontFamily: 'var(--font-display)' }}>Room</div>
-            </div>
-            <div style={{ flex: 1, textAlign: 'center', padding: '10px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
-              <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: '700', color: 'var(--text-primary)' }}>
-                {session.players?.length || 0}
+              <div style={{ flex: 1, textAlign: 'center', padding: '10px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: '700', color: 'var(--text-primary)' }}>
+                  {session.players?.length || 0}
+                </div>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: '2px', fontFamily: 'var(--font-display)' }}>Players</div>
               </div>
-              <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: '2px', fontFamily: 'var(--font-display)' }}>Players</div>
             </div>
-          </div>
+          ) : (
+            // Past session: show only this user's profit/loss, never room code or stack details
+            <div style={{ textAlign: 'center', padding: '14px', marginBottom: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px', fontFamily: 'var(--font-display)' }}>
+                Your Result
+              </div>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: '900', color: myPL == null ? 'var(--text-muted)' : myPL > 0 ? '#22c55e' : myPL < 0 ? '#ef4444' : 'var(--text-muted)' }}>
+                {myPL == null ? '—' : (myPL > 0 ? '+' : '') + formatINR(myPL)}
+              </div>
+            </div>
+          )}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-              Bank: ₹{Number(session.currentBank || 0).toLocaleString('en-IN')}
-            </div>
+            {isActive ? (
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                Bank: ₹{Number(session.currentBank || 0).toLocaleString('en-IN')}
+              </div>
+            ) : <div />}
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
               {isAdmin && <span className="badge badge-gold">Admin</span>}
               <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>

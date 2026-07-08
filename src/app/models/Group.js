@@ -1,4 +1,33 @@
+// src/app/models/Group.js
 import mongoose from 'mongoose';
+
+const memberStatSchema = new mongoose.Schema({
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  sessionsPlayed: {
+    type: Number,
+    default: 0
+  },
+  sessionsWon: {
+    type: Number,
+    default: 0
+  },
+  totalProfit: {
+    type: Number,
+    default: 0
+  },
+  highestWin: {
+    type: Number,
+    default: 0
+  },
+  highestLoss: {
+    type: Number,
+    default: 0
+  }
+}, { _id: false });
 
 const groupSchema = new mongoose.Schema({
   name: {
@@ -27,6 +56,7 @@ const groupSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   }],
+  memberStats: [memberStatSchema],
   totalSessions: {
     type: Number,
     default: 0

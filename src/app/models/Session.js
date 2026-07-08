@@ -1,9 +1,10 @@
+// src/app/models/Session.js
 import mongoose from 'mongoose';
 
 const transactionSchema = new mongoose.Schema({
   type: {
     type: String,
-    enum: ['buyin', 'rebuy', 'player_transfer'],
+    enum: ['buyin', 'rebuy', 'player_transfer', 'return_to_bank'],
     required: true
   },
   fromType: {
@@ -23,11 +24,11 @@ const transactionSchema = new mongoose.Schema({
   to: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    default: null
   },
   toUsername: {
     type: String,
-    required: true
+    default: 'Bank'
   },
   amount: {
     type: Number,
@@ -41,6 +42,10 @@ const transactionSchema = new mongoose.Schema({
   timestamp: {
     type: Date,
     default: Date.now
+  },
+  isDeleted: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -97,7 +102,7 @@ const sessionSchema = new mongoose.Schema({
   group: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Group',
-    default: null
+    required: true
   },
   initialBank: {
     type: Number,
