@@ -57,7 +57,7 @@ export default function LandingPage() {
       </div>
 
       {/* Feature cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', maxWidth: '900px', margin: '20px auto', padding: '0 20px 60px' }}>
+      <div className="landing-features-grid" style={{ gap: '16px', maxWidth: '900px', margin: '20px auto', padding: '0 20px 60px' }}>
         {[
           { icon: '♠', title: 'Live Sessions', desc: 'Create a room, share the code, and track every chip in real-time as players join.' },
           { icon: '♦', title: 'Conservation Math', desc: 'Every chip must account for. Bank + stacks always equals the initial buy-in total.' },
