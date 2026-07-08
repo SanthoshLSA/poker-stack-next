@@ -1341,8 +1341,9 @@ img { max-width: 100%; height: auto; }
     min-width: 580px;
   }
   .landing-features-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
   }
 }
 
