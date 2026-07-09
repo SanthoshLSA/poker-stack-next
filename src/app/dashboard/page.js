@@ -287,8 +287,13 @@ function SessionCard({ session, userId, isActive }) {
 function PokerHandDealer() {
   const [hand, setHand] = useState([]);
   const [handStrength, setHandStrength] = useState('');
+  const [isRolling, setIsRolling] = useState(false);
 
   const dealHand = () => {
+    if (isRolling) return;
+    setIsRolling(true);
+    setHandStrength('Shuffling...');
+
     const suits = ['♠', '♥', '♦', '♣'];
     const values = [
       { code: '2', val: 2 }, { code: '3', val: 3 }, { code: '4', val: 4 }, { code: '5', val: 5 },
@@ -315,8 +320,12 @@ function PokerHandDealer() {
     // Sort hand by numeric value
     result.sort((a, b) => a.val - b.val);
 
-    setHand(result);
-    setHandStrength(evaluateHand(result));
+    // Stop rolling animation after 800ms
+    setTimeout(() => {
+      setHand(result);
+      setHandStrength(evaluateHand(result));
+      setIsRolling(false);
+    }, 800);
   };
 
   useEffect(() => {
@@ -362,35 +371,44 @@ function PokerHandDealer() {
         <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '20px' }}>Need luck? Deal a test hand</p>
 
         {/* Card display */}
-        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginBottom: '20px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginBottom: '24px', flexWrap: 'wrap', overflow: 'hidden', padding: '8px 0' }}>
           {hand.map((c, idx) => {
             const isRed = c.suit === '♥' || c.suit === '♦';
             return (
               <div
                 key={idx}
                 style={{
-                  width: '54px',
-                  height: '80px',
+                  width: '56px',
+                  height: '84px',
                   background: 'white',
                   borderRadius: '6px',
-                  border: '1px solid #ccc',
+                  border: '1px solid #ddd',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
                   padding: '6px',
                   color: isRed ? '#e05252' : '#111',
-                  boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
-                  animation: `slide-up 0.3s ease both ${idx * 0.05}s`
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                  position: 'relative',
+                  animation: isRolling ? `card-slot-roll 0.4s ease-in-out infinite alternate` : 'none',
+                  animationDelay: `${idx * 0.08}s`
                 }}
               >
-                <div style={{ fontSize: '14px', fontWeight: 'bold', lineHeight: '1', fontFamily: 'var(--font-display)', textAlign: 'left' }}>
-                  {c.code}
+                {/* Top Left Value & Suit */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'absolute', top: '4px', left: '4px', lineHeight: '1' }}>
+                  <span style={{ fontSize: '12px', fontWeight: '900', fontFamily: 'var(--font-display)' }}>{c.code}</span>
+                  <span style={{ fontSize: '10px' }}>{c.suit}</span>
                 </div>
-                <div style={{ fontSize: '24px', alignSelf: 'center', lineHeight: '1' }}>
+
+                {/* Big Center Symbol */}
+                <div style={{ fontSize: '26px', alignSelf: 'center', position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', lineHeight: '1' }}>
                   {c.suit}
                 </div>
-                <div style={{ fontSize: '14px', fontWeight: 'bold', lineHeight: '1', fontFamily: 'var(--font-display)', textAlign: 'right', transform: 'rotate(180deg)' }}>
-                  {c.code}
+
+                {/* Bottom Right Value & Suit (Upside Down) */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'absolute', bottom: '4px', right: '4px', lineHeight: '1', transform: 'rotate(180deg)' }}>
+                  <span style={{ fontSize: '12px', fontWeight: '900', fontFamily: 'var(--font-display)' }}>{c.code}</span>
+                  <span style={{ fontSize: '10px' }}>{c.suit}</span>
                 </div>
               </div>
             );
@@ -398,12 +416,12 @@ function PokerHandDealer() {
         </div>
 
         {/* Strength label */}
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '16px' }}>
-          {handStrength || 'Dealing...'}
+        <div style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '16px', minHeight: '27px' }}>
+          {handStrength}
         </div>
 
-        <button className="btn btn-outline btn-sm" onClick={dealHand}>
-          ♦ Shuffle & Deal
+        <button className="btn btn-outline btn-sm" onClick={dealHand} disabled={isRolling}>
+          {isRolling ? 'Shuffling...' : '♦ Shuffle & Deal'}
         </button>
       </div>
     </div>

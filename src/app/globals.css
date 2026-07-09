@@ -1313,6 +1313,12 @@ img { max-width: 100%; height: auto; }
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes card-slot-roll {
+  0% { transform: translateY(-80px); opacity: 0; filter: blur(4px); }
+  50% { transform: translateY(30px); opacity: 0.8; filter: blur(2px); }
+  100% { transform: translateY(0); opacity: 1; filter: blur(0); }
+}
+
 .animate-in {
   animation: slide-up 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
 }
