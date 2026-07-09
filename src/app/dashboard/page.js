@@ -115,30 +115,32 @@ export default function DashboardPage() {
             {groups.map(g => {
               const myStats = (g.memberStats || []).find(s => s.user === user._id || s.user?.toString() === user._id);
               return (
-                <div key={g._id} className="card">
-                  <div className="card-body" style={{ padding: '18px 20px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                      <div>
-                        <div style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{g.name}</div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>{g.members?.length || 0} members</div>
+                <Link key={g._id} href={`/groups?groupId=${g._id}`} style={{ textDecoration: 'none' }}>
+                  <div className="card" style={{ cursor: 'pointer', height: '100%' }}>
+                    <div className="card-body" style={{ padding: '18px 20px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                        <div>
+                          <div style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-primary)' }}>{g.name}</div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>{g.members?.length || 0} members</div>
+                        </div>
+                        <span style={{ fontSize: '18px', color: 'var(--color-gold)' }}>♥</span>
                       </div>
-                      <span style={{ fontSize: '18px', color: 'var(--color-gold)' }}>♥</span>
+                      {myStats && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                          {[
+                            { label: 'P/L', value: formatPL(myStats.totalProfit || 0), color: (myStats.totalProfit || 0) >= 0 ? '#22c55e' : '#ef4444' },
+                            { label: 'Sessions', value: myStats.sessionsPlayed || 0, color: 'var(--color-gold)' },
+                          ].map(st => (
+                            <div key={st.label} style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+                              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{st.label}</div>
+                              <div style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: '800', color: st.color, marginTop: '3px' }}>{st.value}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    {myStats && (
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                        {[
-                          { label: 'P/L', value: formatPL(myStats.totalProfit || 0), color: (myStats.totalProfit || 0) >= 0 ? '#22c55e' : '#ef4444' },
-                          { label: 'Sessions', value: myStats.sessionsPlayed || 0, color: 'var(--color-gold)' },
-                        ].map(st => (
-                          <div key={st.label} style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
-                            <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{st.label}</div>
-                            <div style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: '800', color: st.color, marginTop: '3px' }}>{st.value}</div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
-                </div>
+                </Link>
               );
             })}
           </div>

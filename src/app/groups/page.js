@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
 import { getMyGroupsAction, createGroupAction, joinGroupAction, getGroupDetailAction } from '../actions/groupActions';
 
@@ -13,9 +13,11 @@ const formatPL = n => {
 };
 const medals = ['🥇', '🥈', '🥉'];
 
-export default function GroupsPage() {
+function GroupsContent() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const paramGroupId = searchParams.get('groupId');
   const [groups, setGroups] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -35,11 +37,19 @@ export default function GroupsPage() {
     if (!authLoading && !user) { router.push('/login'); return; }
     if (user) {
       getMyGroupsAction(user._id).then(res => {
-        if (!res.error) setGroups(res.groups || []);
+        if (!res.error) {
+          setGroups(res.groups || []);
+          // Auto open group from query parameter
+          if (paramGroupId) {
+            getGroupDetailAction(user._id, paramGroupId).then(detailRes => {
+              if (!detailRes.error) setSelectedGroup(detailRes.group);
+            });
+          }
+        }
         setLoading(false);
       });
     }
-  }, [user, authLoading, router]);
+  }, [user, authLoading, router, paramGroupId]);
 
   const handleCreate = async e => {
     e.preventDefault();
@@ -323,5 +333,17 @@ export default function GroupsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function GroupsPage() {
+  return (
+    <Suspense fallback={
+      <div className="page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '80vh' }}>
+        <div style={{ color: 'var(--text-muted)', fontSize: '16px', fontFamily: 'var(--font-display)' }}>Loading groups...</div>
+      </div>
+    }>
+      <GroupsContent />
+    </Suspense>
   );
 }
