@@ -793,11 +793,11 @@ function BlackjackDealer() {
   const dScore = gameStatus === 'playing' ? calculateScore([dealerCards[0]]) : calculateScore(dealerCards);
 
   const getStatusBadge = () => {
-    if (gameStatus === 'blackjack') return { text: 'BLACKJACK! 🏆', color: '#22c55e' };
-    if (gameStatus === 'bust') return { text: 'BUST! ✕', color: '#ef4444' };
-    if (gameStatus === 'won') return { text: 'YOU WIN! 🎉', color: '#22c55e' };
-    if (gameStatus === 'lost') return { text: 'DEALER WINS ✕', color: '#ef4444' };
-    if (gameStatus === 'push') return { text: 'PUSH (TIE) 🤝', color: 'var(--color-gold)' };
+    if (gameStatus === 'blackjack') return { text: 'BLACKJACK!', color: '#22c55e' };
+    if (gameStatus === 'bust') return { text: 'BUST!', color: '#ef4444' };
+    if (gameStatus === 'won') return { text: 'YOU WIN!', color: '#22c55e' };
+    if (gameStatus === 'lost') return { text: 'DEALER WINS', color: '#ef4444' };
+    if (gameStatus === 'push') return { text: 'PUSH (TIE)', color: 'var(--color-gold)' };
     return null;
   };
 
