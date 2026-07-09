@@ -72,7 +72,7 @@ export default function DashboardPage() {
       <div className="bg-orb bg-orb-gold" style={{ opacity: 0.4 }} />
 
       {/* Header */}
-      <div className="page-header">
+      <div className="page-header" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
         <div>
           <div className="section-badge">♠ Dashboard</div>
           <h1 className="page-title">Welcome, {user.username}</h1>
@@ -80,7 +80,30 @@ export default function DashboardPage() {
             {activeSessions.length > 0 ? `${activeSessions.length} active session${activeSessions.length !== 1 ? 's' : ''}` : 'No active sessions'}
           </p>
         </div>
-        <Link href="/session/create" className="btn btn-primary">♠ New Session</Link>
+
+        {/* Controls: Create and Join Session */}
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', width: '100%', maxWidth: '420px', justifyContent: 'flex-end' }} className="header-controls">
+          <Link href="/session/create" className="btn btn-primary" style={{ height: '38px', display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
+            ♠ New Session
+          </Link>
+          
+          <form onSubmit={handleJoin} style={{ display: 'flex', gap: '6px', flex: '1', minWidth: '220px', position: 'relative' }}>
+            <input
+              id="joinCode" type="text" className="form-input"
+              style={{ height: '38px', padding: '0 12px', fontFamily: 'var(--font-mono)', letterSpacing: '0.15em', textTransform: 'uppercase', fontSize: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)' }}
+              placeholder="JOIN CODE" value={joinCode}
+              onChange={e => setJoinCode(e.target.value.toUpperCase())} maxLength={6}
+            />
+            <button type="submit" className="btn btn-secondary" style={{ height: '38px', display: 'flex', alignItems: 'center', whiteSpace: 'nowrap', padding: '0 14px' }} disabled={joining || !joinCode.trim()}>
+              {joining ? '...' : 'Join'}
+            </button>
+            {joinError && (
+              <p className="form-error" style={{ position: 'absolute', top: '100%', right: '0', fontSize: '10px', marginTop: '3px', whiteSpace: 'nowrap', zIndex: 10 }}>
+                ✕ {joinError}
+              </p>
+            )}
+          </form>
+        </div>
       </div>
 
       {/* ── Overall Stats ── */}
@@ -150,24 +173,8 @@ export default function DashboardPage() {
       {/* ── Random Poker Hand Card ── */}
       <PokerHandDealer />
 
-      {/* ── Join Session ── */}
-      <div className="card" style={{ marginBottom: '32px' }}>
-        <div className="card-body">
-          <h3 className="card-title" style={{ marginBottom: '14px' }}>♦ Join a Session</h3>
-          <form onSubmit={handleJoin} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <input
-              id="joinCode" type="text" className="form-input"
-              style={{ flex: '1', minWidth: '180px', fontFamily: 'var(--font-mono)', letterSpacing: '0.2em', textTransform: 'uppercase' }}
-              placeholder="ROOM CODE" value={joinCode}
-              onChange={e => setJoinCode(e.target.value.toUpperCase())} maxLength={6}
-            />
-            <button type="submit" className="btn btn-primary" disabled={joining || !joinCode.trim()}>
-              {joining ? 'Joining...' : 'Join ♠'}
-            </button>
-          </form>
-          {joinError && <p className="form-error" style={{ marginTop: '8px' }}>✕ {joinError}</p>}
-        </div>
-      </div>
+      {/* ── Blackjack Minigame Card ── */}
+      <BlackjackDealer />
 
       {/* ── Sessions ── */}
       {loading ? (
@@ -614,6 +621,288 @@ function PokerHandDealer() {
           {revealedCommunityCount < 5 && (
             <button className="btn btn-primary btn-sm" onClick={revealNextStage} disabled={isDealing}>
               {revealedCommunityCount === 0 ? 'Deal Flop ♦' : revealedCommunityCount === 3 ? 'Deal Turn ♥' : 'Deal River ♣'}
+            </button>
+          )}
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+// ─── Blackjack Minigame Component ───────────────────────────────────────────
+function BlackjackDealer() {
+  const [deck, setDeck] = useState([]);
+  const [playerCards, setPlayerCards] = useState([]);
+  const [dealerCards, setDealerCards] = useState([]);
+  const [gameStatus, setGameStatus] = useState('idle'); // idle, playing, stand, won, lost, push, blackjack, bust
+  const [isDealing, setIsDealing] = useState(false);
+  const [rollStates, setRollStates] = useState({ player: [], dealer: [] });
+
+  const suits = ['♠', '♥', '♦', '♣'];
+  const codes = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+
+  const getCardValue = (card) => {
+    if (!card) return 0;
+    if (['J', 'Q', 'K'].includes(card.code)) return 10;
+    if (card.code === 'A') return 11;
+    return Number(card.code);
+  };
+
+  const calculateScore = (cards) => {
+    let score = cards.reduce((sum, c) => sum + getCardValue(c), 0);
+    let aces = cards.filter(c => c.code === 'A').length;
+    while (score > 21 && aces > 0) {
+      score -= 10;
+      aces -= 1;
+    }
+    return score;
+  };
+
+  const startNewGame = () => {
+    if (isDealing) return;
+    setIsDealing(true);
+    setGameStatus('playing');
+
+    // Build & shuffle deck
+    const freshDeck = [];
+    for (const s of suits) {
+      for (const c of codes) {
+        freshDeck.push({ code: c, suit: s });
+      }
+    }
+    for (let i = freshDeck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const temp = freshDeck[i];
+      freshDeck[i] = freshDeck[j];
+      freshDeck[j] = temp;
+    }
+
+    const p1 = freshDeck.pop();
+    const d1 = freshDeck.pop();
+    const p2 = freshDeck.pop();
+    const d2 = freshDeck.pop();
+
+    setPlayerCards([p1, p2]);
+    setDealerCards([d1, d2]);
+    setDeck(freshDeck);
+
+    setRollStates({
+      player: [true, true],
+      dealer: [true, false]
+    });
+
+    setTimeout(() => {
+      setRollStates({ player: [false, false], dealer: [false, false] });
+      setIsDealing(false);
+
+      const pScore = calculateScore([p1, p2]);
+      if (pScore === 21) {
+        setGameStatus('blackjack');
+      }
+    }, 600);
+  };
+
+  const hit = () => {
+    if (gameStatus !== 'playing' || isDealing) return;
+    setIsDealing(true);
+
+    const newDeck = [...deck];
+    const newCard = newDeck.pop();
+    const nextPlayerCards = [...playerCards, newCard];
+
+    setPlayerCards(nextPlayerCards);
+    setDeck(newDeck);
+    
+    setRollStates(prev => ({
+      ...prev,
+      player: [...prev.player.map(() => false), true]
+    }));
+
+    setTimeout(() => {
+      setRollStates({ player: nextPlayerCards.map(() => false), dealer: dealerCards.map(() => false) });
+      setIsDealing(false);
+
+      const score = calculateScore(nextPlayerCards);
+      if (score > 21) {
+        setGameStatus('bust');
+      } else if (score === 21) {
+        // Automatically stand at 21
+        standWithCards(nextPlayerCards);
+      }
+    }, 300);
+  };
+
+  const stand = () => {
+    if (gameStatus !== 'playing' || isDealing) return;
+    standWithCards(playerCards);
+  };
+
+  const standWithCards = (currentPHand) => {
+    setGameStatus('stand');
+    setIsDealing(true);
+
+    let currentDHand = [...dealerCards];
+    let currentDeck = [...deck];
+
+    const runDealerTurn = () => {
+      const pScore = calculateScore(currentPHand);
+      const dScore = calculateScore(currentDHand);
+
+      if (dScore < 17) {
+        const nextCard = currentDeck.pop();
+        currentDHand.push(nextCard);
+        setDealerCards([...currentDHand]);
+        setDeck([...currentDeck]);
+
+        setRollStates(prev => ({
+          ...prev,
+          dealer: [...prev.dealer.map(() => false), true]
+        }));
+
+        setTimeout(() => {
+          setRollStates({ player: currentPHand.map(() => false), dealer: currentDHand.map(() => false) });
+          runDealerTurn();
+        }, 400);
+      } else {
+        setIsDealing(false);
+        // Determine outcome
+        const finalP = calculateScore(currentPHand);
+        const finalD = calculateScore(currentDHand);
+
+        if (finalD > 21) {
+          setGameStatus('won'); // Dealer busted
+        } else if (finalP > finalD) {
+          setGameStatus('won');
+        } else if (finalD > finalP) {
+          setGameStatus('lost');
+        } else {
+          setGameStatus('push');
+        }
+      }
+    };
+
+    runDealerTurn();
+  };
+
+  useEffect(() => {
+    startNewGame();
+  }, []);
+
+  const pScore = calculateScore(playerCards);
+  const dScore = gameStatus === 'playing' ? calculateScore([dealerCards[0]]) : calculateScore(dealerCards);
+
+  const getStatusBadge = () => {
+    if (gameStatus === 'blackjack') return { text: 'BLACKJACK! 🏆', color: '#22c55e' };
+    if (gameStatus === 'bust') return { text: 'BUST! ✕', color: '#ef4444' };
+    if (gameStatus === 'won') return { text: 'YOU WIN! 🎉', color: '#22c55e' };
+    if (gameStatus === 'lost') return { text: 'DEALER WINS ✕', color: '#ef4444' };
+    if (gameStatus === 'push') return { text: 'PUSH (TIE) 🤝', color: 'var(--color-gold)' };
+    return null;
+  };
+
+  const badge = getStatusBadge();
+
+  const renderMinigameCard = (c, isFacedown, isRolling) => {
+    if (isFacedown) {
+      return (
+        <div style={{
+          width: '38px', height: '58px',
+          background: 'linear-gradient(135deg, var(--color-gold-dark), var(--color-gold))',
+          borderRadius: '4px', border: '1px solid rgba(255,255,255,0.2)',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontFamily: 'var(--font-display)', color: '#0a0a0f', fontSize: '16px', fontWeight: 'bold'
+        }}>
+          ♣
+        </div>
+      );
+    }
+
+    if (!c) return null;
+    const isRed = c.suit === '♥' || c.suit === '♦';
+    return (
+      <div style={{
+        width: '38px', height: '58px',
+        background: 'white', borderRadius: '4px', border: '1px solid #ddd',
+        display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+        padding: '3px', color: isRed ? '#e05252' : '#111',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+        position: 'relative',
+        animation: isRolling ? `card-slot-roll 0.25s ease-in-out infinite alternate` : 'none'
+      }}>
+        <div style={{ position: 'absolute', top: '2px', left: '2px', display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: '0.9' }}>
+          <span style={{ fontSize: '9px', fontWeight: '900', fontFamily: 'var(--font-display)' }}>{c.code}</span>
+          <span style={{ fontSize: '8px' }}>{c.suit}</span>
+        </div>
+        <div style={{ fontSize: '18px', position: 'absolute', top: '52%', left: '50%', transform: 'translate(-50%, -50%)', lineHeight: '1' }}>
+          {c.suit}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="card" style={{ marginBottom: '32px', background: 'radial-gradient(circle at 50% 50%, rgba(201,168,76,0.08) 0%, var(--color-bg-card) 100%)', border: '1px solid rgba(201,168,76,0.2)' }}>
+      <div className="card-body" style={{ textAlign: 'center', padding: '20px 16px' }}>
+        <h3 className="card-title" style={{ color: 'var(--color-gold)', marginBottom: '4px' }}>♣ Blackjack Minigame</h3>
+        <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '20px' }}>Try to hit 21 without going over</p>
+
+        {badge && (
+          <div style={{
+            fontSize: '18px', fontWeight: '900', color: badge.color,
+            fontFamily: 'var(--font-display)', marginBottom: '16px', letterSpacing: '0.05em'
+          }}>
+            {badge.text}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+          
+          {/* Player Cards */}
+          <div style={{ flex: '1', minWidth: '120px', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Your Hand</div>
+            <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', marginBottom: '8px' }}>
+              {playerCards.map((c, i) => renderMinigameCard(c, false, rollStates.player[i]))}
+            </div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+              Score: {pScore}
+            </div>
+          </div>
+
+          {/* VS Divider */}
+          <div style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--text-muted)', fontFamily: 'var(--font-display)' }}>VS</div>
+
+          {/* Dealer Cards */}
+          <div style={{ flex: '1', minWidth: '120px', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Dealer Hand</div>
+            <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', marginBottom: '8px' }}>
+              {dealerCards.map((c, i) => {
+                const isFacedown = gameStatus === 'playing' && i === 1;
+                return renderMinigameCard(c, isFacedown, rollStates.dealer[i]);
+              })}
+            </div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+              Score: {dScore}
+            </div>
+          </div>
+
+        </div>
+
+        {/* Action Controls */}
+        <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+          {gameStatus === 'playing' ? (
+            <>
+              <button className="btn btn-secondary btn-sm" onClick={hit} disabled={isDealing}>
+                Hit ♣
+              </button>
+              <button className="btn btn-primary btn-sm" onClick={stand} disabled={isDealing}>
+                Stand ♠
+              </button>
+            </>
+          ) : (
+            <button className="btn btn-ghost btn-sm" onClick={startNewGame} disabled={isDealing}>
+              ♣ Deal New Hand
             </button>
           )}
         </div>
