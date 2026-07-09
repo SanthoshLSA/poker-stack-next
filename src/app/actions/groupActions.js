@@ -105,19 +105,19 @@ export async function getGroupDetailAction(userId, groupId) {
     if (!isMember) return { error: 'You are not a member of this group' };
 
     const groupObj = group.toObject();
-    groupObj.memberStats = groupObj.memberStats.map(s => {
-      const isPrivate = s.user?.isPrivate || false;
-      const isSelf = s.user?._id?.toString() === userId;
-      return {
-        ...s,
-        user: s.user?._id?.toString() || s.user,
-        isPrivate,
-        username: isPrivate && !isSelf ? 'Private Player' : s.username,
-        totalProfit: isPrivate && !isSelf ? null : s.totalProfit,
-        highestWin: isPrivate && !isSelf ? null : s.highestWin,
-        highestLoss: isPrivate && !isSelf ? null : s.highestLoss
-      };
-    });
+    groupObj.memberStats = groupObj.memberStats
+      .filter(s => {
+        const isPrivate = s.user?.isPrivate || false;
+        const isSelf = s.user?._id?.toString() === userId;
+        // Keep in the array only if they are not private OR if they are the current user
+        return !isPrivate || isSelf;
+      })
+      .map(s => {
+        return {
+          ...s,
+          user: s.user?._id?.toString() || s.user
+        };
+      });
 
     return { group: JSON.parse(JSON.stringify(groupObj)) };
   } catch (err) {
