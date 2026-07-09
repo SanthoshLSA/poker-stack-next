@@ -104,7 +104,6 @@ export async function getGroupDetailAction(userId, groupId) {
     const isMember = group.members.some(m => m.toString() === userId);
     if (!isMember) return { error: 'You are not a member of this group' };
 
-    // Format memberStats to apply privacy checks on the server or attach isPrivate field
     const groupObj = group.toObject();
     groupObj.memberStats = groupObj.memberStats.map(s => {
       const isPrivate = s.user?.isPrivate || false;
@@ -113,7 +112,7 @@ export async function getGroupDetailAction(userId, groupId) {
         ...s,
         user: s.user?._id?.toString() || s.user,
         isPrivate,
-        // Hide stats if private and not looking at yourself
+        username: isPrivate && !isSelf ? 'Private Player' : s.username,
         totalProfit: isPrivate && !isSelf ? null : s.totalProfit,
         highestWin: isPrivate && !isSelf ? null : s.highestWin,
         highestLoss: isPrivate && !isSelf ? null : s.highestLoss

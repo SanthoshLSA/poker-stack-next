@@ -293,6 +293,10 @@ function PokerHandDealer() {
   const [equities, setEquities] = useState({ player: 50, computer: 50 });
   const [isDealing, setIsDealing] = useState(false);
   const [rollStates, setRollStates] = useState({ player: [false, false], computer: [false, false], community: [false, false, false, false, false] });
+  const [activePickerIndex, setActivePickerIndex] = useState(null); // null, 0, or 1
+
+  const suits = ['♠', '♥', '♦', '♣'];
+  const codes = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 
   // Evaluation helpers
   const getCardNumericValue = (code) => {
@@ -302,17 +306,15 @@ function PokerHandDealer() {
 
   // Evaluate 5 to 7 cards to find best 5-card hand strength value (higher score = better hand)
   const evaluateSevenCardHand = (cards) => {
-    // Generate all combinations of 5 cards from the set
     let bestScore = 0;
     let bestName = 'High Card';
     const n = cards.length;
 
-    // Helper to evaluate 5 cards
     const eval5 = (fiveCards) => {
-      const suits = fiveCards.map(c => c.suit);
+      const suitsList = fiveCards.map(c => c.suit);
       const vals = fiveCards.map(c => getCardNumericValue(c.code)).sort((a,b) => a - b);
       
-      const isFlush = suits.every(s => s === suits[0]);
+      const isFlush = suitsList.every(s => s === suitsList[0]);
       let isStraight = false;
       if (vals[4] - vals[0] === 4 && new Set(vals).size === 5) {
         isStraight = true;
@@ -326,7 +328,6 @@ function PokerHandDealer() {
       const countArr = sortedCounts.map(c => c[1]);
 
       let rank = 1; // High card
-      let tieBreakers = vals.slice().reverse();
 
       if (isFlush && isStraight) {
         rank = vals[4] === 14 && vals[0] !== 2 ? 10 : 9; // Royal or Straight Flush
@@ -346,7 +347,6 @@ function PokerHandDealer() {
         rank = 2; // One pair
       }
 
-      // Calculate score value for tie-breakers
       let score = rank * 1000000;
       sortedCounts.forEach((c, idx) => {
         score += Number(c[0]) * Math.pow(15, 4 - idx);
@@ -356,7 +356,6 @@ function PokerHandDealer() {
       return { score, name: names[rank] };
     };
 
-    // Combination generator
     for (let a = 0; a < n - 4; a++) {
       for (let b = a + 1; b < n - 3; b++) {
         for (let c = b + 1; c < n - 2; c++) {
@@ -382,7 +381,6 @@ function PokerHandDealer() {
     let ties = 0;
     const runs = 200; // Fast simulation
 
-    // Get remaining deck
     const usedIds = new Set([...pH, ...cH, ...cCards.slice(0, revCount)].map(c => c.code + c.suit));
     const remainingDeck = fullDeck.filter(c => !usedIds.has(c.code + c.suit));
 
@@ -396,7 +394,6 @@ function PokerHandDealer() {
         simDeck[j] = temp;
       }
 
-      // Draw remaining community cards
       const simCommunity = [...cCards.slice(0, revCount)];
       while (simCommunity.length < 5) {
         simCommunity.push(simDeck.pop());
@@ -422,33 +419,30 @@ function PokerHandDealer() {
     setIsDealing(true);
     setRevealedCommunityCount(0);
 
-    const suits = ['♠', '♥', '♦', '♣'];
-    const codes = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
-    
-    // Build and shuffle deck
+    // Build fresh full deck
     const freshDeck = [];
     for (const s of suits) {
       for (const c of codes) {
         freshDeck.push({ code: c, suit: s });
       }
     }
-    for (let i = freshDeck.length - 1; i > 0; i--) {
+    const shuffledDeck = [...freshDeck];
+    for (let i = shuffledDeck.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      const temp = freshDeck[i];
-      freshDeck[i] = freshDeck[j];
-      freshDeck[j] = temp;
+      const temp = shuffledDeck[i];
+      shuffledDeck[i] = shuffledDeck[j];
+      shuffledDeck[j] = temp;
     }
 
-    const pH = [freshDeck.pop(), freshDeck.pop()];
-    const cH = [freshDeck.pop(), freshDeck.pop()];
-    const cCards = [freshDeck.pop(), freshDeck.pop(), freshDeck.pop(), freshDeck.pop(), freshDeck.pop()];
+    const pH = [shuffledDeck.pop(), shuffledDeck.pop()];
+    const cH = [shuffledDeck.pop(), shuffledDeck.pop()];
+    const cCards = [shuffledDeck.pop(), shuffledDeck.pop(), shuffledDeck.pop(), shuffledDeck.pop(), shuffledDeck.pop()];
 
     setDeck(freshDeck);
     setPlayerHand(pH);
     setComputerHand(cH);
     setCommunityCards(cCards);
 
-    // Staggered roll animations
     setRollStates({
       player: [true, true],
       computer: [true, true],
@@ -462,7 +456,6 @@ function PokerHandDealer() {
     setTimeout(() => {
       setRollStates(prev => ({ ...prev, computer: [false, false] }));
       setIsDealing(false);
-      // Initial pre-flop equities
       const eq = calculateEquities(pH, cH, cCards, 0, freshDeck);
       setEquities(eq);
     }, 800);
@@ -476,7 +469,6 @@ function PokerHandDealer() {
     else if (revealedCommunityCount === 4) nextCount = 5; // river
     else return;
 
-    // Trigger roll animation for newly revealed community cards
     setRollStates(prev => {
       const communityRoll = [...prev.community];
       if (revealedCommunityCount === 0) communityRoll[0] = communityRoll[1] = communityRoll[2] = true;
@@ -494,15 +486,24 @@ function PokerHandDealer() {
         community: [false, false, false, false, false]
       });
       setIsDealing(false);
-      // Recalculate equities with newly revealed cards
       const eq = calculateEquities(playerHand, computerHand, communityCards, nextCount, deck);
       setEquities(eq);
     }, 500);
   };
 
-  useEffect(() => {
-    dealNewGame();
-  }, []);
+  // Select custom pocket card handler
+  const handleSelectCard = (selectedCard) => {
+    if (activePickerIndex === null) return;
+    
+    const updatedHand = [...playerHand];
+    updatedHand[activePickerIndex] = selectedCard;
+    setPlayerHand(updatedHand);
+    setActivePickerIndex(null);
+
+    // Recalculate equities immediately
+    const eq = calculateEquities(updatedHand, computerHand, communityCards, revealedCommunityCount, deck);
+    setEquities(eq);
+  };
 
   const getHandDesc = (pH, cCards, count) => {
     if (count === 0) return 'Pre-flop';
@@ -510,8 +511,16 @@ function PokerHandDealer() {
     return evalRes.name;
   };
 
-  // Card component helper with custom mobile widths
-  const renderCard = (c, isFacedown, isRolling) => {
+  // Get list of cards currently visible on the table to disable them in picker
+  const getUnavailableCards = () => {
+    const list = new Set();
+    playerHand.forEach(c => { if(c) list.add(c.code + c.suit); });
+    computerHand.forEach(c => { if(c) list.add(c.code + c.suit); });
+    communityCards.slice(0, revealedCommunityCount).forEach(c => { if(c) list.add(c.code + c.suit); });
+    return list;
+  };
+
+  const renderCard = (c, isFacedown, isRolling, onClick) => {
     if (isFacedown) {
       return (
         <div style={{
@@ -527,17 +536,24 @@ function PokerHandDealer() {
       );
     }
 
+    if (!c) return null;
+
     const isRed = c.suit === '♥' || c.suit === '♦';
     return (
-      <div style={{
-        width: '38px', height: '58px',
-        background: 'white', borderRadius: '4px', border: '1px solid #ddd',
-        display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-        padding: '3px', color: isRed ? '#e05252' : '#111',
-        boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
-        position: 'relative',
-        animation: isRolling ? `card-slot-roll 0.25s ease-in-out infinite alternate` : 'none'
-      }}>
+      <div 
+        onClick={onClick}
+        style={{
+          width: '38px', height: '58px',
+          background: 'white', borderRadius: '4px', border: onClick ? '2px solid var(--color-gold)' : '1px solid #ddd',
+          display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+          padding: '3px', color: isRed ? '#e05252' : '#111',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+          position: 'relative',
+          cursor: onClick ? 'pointer' : 'default',
+          animation: isRolling ? `card-slot-roll 0.25s ease-in-out infinite alternate` : 'none'
+        }}
+        title={onClick ? 'Click to change card' : undefined}
+      >
         {/* Top Left */}
         <div style={{ position: 'absolute', top: '2px', left: '2px', display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: '0.9' }}>
           <span style={{ fontSize: '9px', fontWeight: '900', fontFamily: 'var(--font-display)' }}>{c.code}</span>
@@ -551,20 +567,22 @@ function PokerHandDealer() {
     );
   };
 
+  const unavailableCards = getUnavailableCards();
+
   return (
     <div className="card" style={{ marginBottom: '32px', background: 'radial-gradient(circle at 50% 50%, rgba(201,168,76,0.08) 0%, var(--color-bg-card) 100%)', border: '1px solid rgba(201,168,76,0.2)' }}>
       <div className="card-body" style={{ textAlign: 'center', padding: '20px 16px' }}>
         <h3 className="card-title" style={{ color: 'var(--color-gold)', marginBottom: '4px' }}>♠ Texas Hold'em Dealer</h3>
-        <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '20px' }}>Test your pocket cards against the dealer</p>
+        <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '20px' }}>Tap your cards to select custom starting hands</p>
 
         {/* ── Hands Layout ── */}
         <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
           
           {/* User Hand */}
           <div style={{ flex: '1', minWidth: '120px', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Your Hand</div>
-            <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', marginBottom: '8px' }}>
-              {playerHand.map((c, i) => renderCard(c, false, rollStates.player[i]))}
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Your Hand (Tap to edit)</div>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginBottom: '8px' }}>
+              {playerHand.map((c, i) => renderCard(c, false, rollStates.player[i], () => !isDealing && setActivePickerIndex(i)))}
             </div>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '13px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
               {getHandDesc(playerHand, communityCards, revealedCommunityCount)}
@@ -610,7 +628,7 @@ function PokerHandDealer() {
           </div>
         </div>
 
-        {/* Action button */}
+        {/* Action buttons */}
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
           <button className="btn btn-ghost btn-sm" onClick={dealNewGame} disabled={isDealing}>
             ♠ New Game
@@ -622,6 +640,59 @@ function PokerHandDealer() {
             </button>
           )}
         </div>
+
+        {/* ── Custom Pocket Card Selector Modal ── */}
+        {activePickerIndex !== null && (
+          <div className="modal-overlay" onClick={() => setActivePickerIndex(null)} style={{ zIndex: 1000 }}>
+            <div className="modal animate-in" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px', padding: '18px' }}>
+              <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h3 className="modal-title" style={{ fontSize: '16px' }}>Select Card {activePickerIndex + 1}</h3>
+                <button className="modal-close" onClick={() => setActivePickerIndex(null)}>✕</button>
+              </div>
+              <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {suits.map(s => {
+                    const isRed = s === '♥' || s === '♦';
+                    return (
+                      <div key={s} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div style={{ fontSize: '11px', color: isRed ? '#e05252' : 'var(--text-secondary)', fontFamily: 'var(--font-display)', textAlign: 'left', fontWeight: 'bold' }}>
+                          {s === '♠' ? 'Spades ♠' : s === '♥' ? 'Hearts ♥' : s === '♦' ? 'Diamonds ♦' : 'Clubs ♣'}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(13, 1fr)', gap: '4px' }}>
+                          {codes.map(c => {
+                            const isUsed = unavailableCards.has(c + s);
+                            return (
+                              <button
+                                key={c}
+                                disabled={isUsed}
+                                onClick={() => handleSelectCard({ code: c, suit: s })}
+                                style={{
+                                  padding: '8px 2px',
+                                  fontSize: '11px',
+                                  fontWeight: '900',
+                                  fontFamily: 'var(--font-display)',
+                                  borderRadius: '4px',
+                                  border: '1px solid var(--border)',
+                                  background: isUsed ? 'rgba(255,255,255,0.02)' : 'white',
+                                  color: isUsed ? 'rgba(255,255,255,0.05)' : isRed ? '#e05252' : '#111',
+                                  cursor: isUsed ? 'not-allowed' : 'pointer',
+                                  textAlign: 'center',
+                                  transition: 'all 0.1s'
+                                }}
+                              >
+                                {c}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>
