@@ -293,7 +293,6 @@ function PokerHandDealer() {
   const [equities, setEquities] = useState({ player: 50, computer: 50 });
   const [isDealing, setIsDealing] = useState(false);
   const [rollStates, setRollStates] = useState({ player: [false, false], computer: [false, false], community: [false, false, false, false, false] });
-  const [activePickerIndex, setActivePickerIndex] = useState(null); // null, 0, or 1
 
   const suits = ['♠', '♥', '♦', '♣'];
   const codes = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
@@ -491,19 +490,9 @@ function PokerHandDealer() {
     }, 500);
   };
 
-  // Select custom pocket card handler
-  const handleSelectCard = (selectedCard) => {
-    if (activePickerIndex === null) return;
-    
-    const updatedHand = [...playerHand];
-    updatedHand[activePickerIndex] = selectedCard;
-    setPlayerHand(updatedHand);
-    setActivePickerIndex(null);
-
-    // Recalculate equities immediately
-    const eq = calculateEquities(updatedHand, computerHand, communityCards, revealedCommunityCount, deck);
-    setEquities(eq);
-  };
+  useEffect(() => {
+    dealNewGame();
+  }, []);
 
   const getHandDesc = (pH, cCards, count) => {
     if (count === 0) return 'Pre-flop';
@@ -511,16 +500,7 @@ function PokerHandDealer() {
     return evalRes.name;
   };
 
-  // Get list of cards currently visible on the table to disable them in picker
-  const getUnavailableCards = () => {
-    const list = new Set();
-    playerHand.forEach(c => { if(c) list.add(c.code + c.suit); });
-    computerHand.forEach(c => { if(c) list.add(c.code + c.suit); });
-    communityCards.slice(0, revealedCommunityCount).forEach(c => { if(c) list.add(c.code + c.suit); });
-    return list;
-  };
-
-  const renderCard = (c, isFacedown, isRolling, onClick) => {
+  const renderCard = (c, isFacedown, isRolling) => {
     if (isFacedown) {
       return (
         <div style={{
@@ -541,18 +521,15 @@ function PokerHandDealer() {
     const isRed = c.suit === '♥' || c.suit === '♦';
     return (
       <div 
-        onClick={onClick}
         style={{
           width: '38px', height: '58px',
-          background: 'white', borderRadius: '4px', border: onClick ? '2px solid var(--color-gold)' : '1px solid #ddd',
+          background: 'white', borderRadius: '4px', border: '1px solid #ddd',
           display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
           padding: '3px', color: isRed ? '#e05252' : '#111',
           boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
           position: 'relative',
-          cursor: onClick ? 'pointer' : 'default',
           animation: isRolling ? `card-slot-roll 0.25s ease-in-out infinite alternate` : 'none'
         }}
-        title={onClick ? 'Click to change card' : undefined}
       >
         {/* Top Left */}
         <div style={{ position: 'absolute', top: '2px', left: '2px', display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: '0.9' }}>
@@ -567,22 +544,20 @@ function PokerHandDealer() {
     );
   };
 
-  const unavailableCards = getUnavailableCards();
-
   return (
     <div className="card" style={{ marginBottom: '32px', background: 'radial-gradient(circle at 50% 50%, rgba(201,168,76,0.08) 0%, var(--color-bg-card) 100%)', border: '1px solid rgba(201,168,76,0.2)' }}>
       <div className="card-body" style={{ textAlign: 'center', padding: '20px 16px' }}>
         <h3 className="card-title" style={{ color: 'var(--color-gold)', marginBottom: '4px' }}>♠ Texas Hold'em Dealer</h3>
-        <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '20px' }}>Tap your cards to select custom starting hands</p>
+        <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '20px' }}>Test your pocket cards against the dealer</p>
 
         {/* ── Hands Layout ── */}
         <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
           
           {/* User Hand */}
           <div style={{ flex: '1', minWidth: '120px', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Your Hand (Tap to edit)</div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Your Hand</div>
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginBottom: '8px' }}>
-              {playerHand.map((c, i) => renderCard(c, false, rollStates.player[i], () => !isDealing && setActivePickerIndex(i)))}
+              {playerHand.map((c, i) => renderCard(c, false, rollStates.player[i]))}
             </div>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '13px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
               {getHandDesc(playerHand, communityCards, revealedCommunityCount)}
@@ -640,59 +615,6 @@ function PokerHandDealer() {
             </button>
           )}
         </div>
-
-        {/* ── Custom Pocket Card Selector Modal ── */}
-        {activePickerIndex !== null && (
-          <div className="modal-overlay" onClick={() => setActivePickerIndex(null)} style={{ zIndex: 1000 }}>
-            <div className="modal animate-in" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px', padding: '18px' }}>
-              <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <h3 className="modal-title" style={{ fontSize: '16px' }}>Select Card {activePickerIndex + 1}</h3>
-                <button className="modal-close" onClick={() => setActivePickerIndex(null)}>✕</button>
-              </div>
-              <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {suits.map(s => {
-                    const isRed = s === '♥' || s === '♦';
-                    return (
-                      <div key={s} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        <div style={{ fontSize: '11px', color: isRed ? '#e05252' : 'var(--text-secondary)', fontFamily: 'var(--font-display)', textAlign: 'left', fontWeight: 'bold' }}>
-                          {s === '♠' ? 'Spades ♠' : s === '♥' ? 'Hearts ♥' : s === '♦' ? 'Diamonds ♦' : 'Clubs ♣'}
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(13, 1fr)', gap: '4px' }}>
-                          {codes.map(c => {
-                            const isUsed = unavailableCards.has(c + s);
-                            return (
-                              <button
-                                key={c}
-                                disabled={isUsed}
-                                onClick={() => handleSelectCard({ code: c, suit: s })}
-                                style={{
-                                  padding: '8px 2px',
-                                  fontSize: '11px',
-                                  fontWeight: '900',
-                                  fontFamily: 'var(--font-display)',
-                                  borderRadius: '4px',
-                                  border: '1px solid var(--border)',
-                                  background: isUsed ? 'rgba(255,255,255,0.02)' : 'white',
-                                  color: isUsed ? 'rgba(255,255,255,0.05)' : isRed ? '#e05252' : '#111',
-                                  cursor: isUsed ? 'not-allowed' : 'pointer',
-                                  textAlign: 'center',
-                                  transition: 'all 0.1s'
-                                }}
-                              >
-                                {c}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
       </div>
     </div>
