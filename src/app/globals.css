@@ -788,10 +788,28 @@ img { max-width: 100%; height: auto; }
   padding-bottom: 24px;
   border-bottom: 1px solid var(--border-subtle);
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
+}
+
+.header-controls {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  width: 100%;
+  max-width: 420px;
+  justify-content: flex-end;
+}
+
+.header-controls form {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+  min-width: 220px;
+  position: relative;
 }
 
 .page-title {

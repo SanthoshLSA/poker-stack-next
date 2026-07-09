@@ -72,7 +72,7 @@ export default function DashboardPage() {
       <div className="bg-orb bg-orb-gold" style={{ opacity: 0.4 }} />
 
       {/* Header */}
-      <div className="page-header" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
+      <div className="page-header">
         <div>
           <div className="section-badge">♠ Dashboard</div>
           <h1 className="page-title">Welcome, {user.username}</h1>
@@ -82,12 +82,12 @@ export default function DashboardPage() {
         </div>
 
         {/* Controls: Create and Join Session */}
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', width: '100%', maxWidth: '420px', justifyContent: 'flex-end' }} className="header-controls">
+        <div className="header-controls">
           <Link href="/session/create" className="btn btn-primary" style={{ height: '38px', display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
             ♠ New Session
           </Link>
           
-          <form onSubmit={handleJoin} style={{ display: 'flex', gap: '6px', flex: '1', minWidth: '220px', position: 'relative' }}>
+          <form onSubmit={handleJoin} style={{ display: 'flex', gap: '6px', position: 'relative' }}>
             <input
               id="joinCode" type="text" className="form-input"
               style={{ height: '38px', padding: '0 12px', fontFamily: 'var(--font-mono)', letterSpacing: '0.15em', textTransform: 'uppercase', fontSize: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)' }}
