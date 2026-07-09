@@ -343,8 +343,8 @@ function PokerHandDealer() {
       });
     }, 80);
 
-    // Stagger stopping times for each card individually
-    const stopTimes = [500, 900, 1300, 1700, 2100];
+    // Stagger stopping times for each card individually (sped up significantly)
+    const stopTimes = [250, 450, 650, 850, 1050];
     
     stopTimes.forEach((time, idx) => {
       setTimeout(() => {
