@@ -17,20 +17,28 @@ function generateRoomCode() {
   return code;
 }
 
-// ─── Create Session (group required, auto ₹200 to admin) ──────────────────────
+// ─── Create Session (group required, auto configured defaultBuyIn to admin) ──
 export async function createSessionAction(userId, data) {
   try {
     await connectDB();
-    const { name, initialBank, groupId } = data;
+    const { name, initialBank, groupId, defaultBuyIn } = data;
 
     if (!name || name.trim().length < 2) {
-      return { error: 'Session name must be at least 2 characters' };
+       return { error: 'Session name must be at least 2 characters' };
     }
     if (!initialBank || initialBank < 1) {
-      return { error: 'Initial bank must be at least ₹1' };
+       return { error: 'Initial bank must be at least ₹1' };
     }
     if (!groupId) {
-      return { error: 'You must select a group to create a session' };
+       return { error: 'You must select a group to create a session' };
+    }
+
+    const buyinAmt = Number(defaultBuyIn || 200);
+    if (buyinAmt < 1) {
+       return { error: 'Default buy-in must be at least ₹1' };
+    }
+    if (Number(initialBank) < buyinAmt) {
+       return { error: `Initial bank must be at least default buy-in amount (₹${buyinAmt})` };
     }
 
     const creatorUser = await User.findById(userId);
@@ -51,7 +59,7 @@ export async function createSessionAction(userId, data) {
 
     const initBank = Number(initialBank);
 
-    // Admin gets auto ₹200 buyin
+    // Admin gets auto buy-in configured amount
     const session = await Session.create({
       name: name.trim(),
       roomCode,
@@ -59,12 +67,13 @@ export async function createSessionAction(userId, data) {
       adminUsername: creatorUser.username,
       group: groupId,
       initialBank: initBank,
-      currentBank: initBank - AUTO_BUYIN_AMOUNT,
+      defaultBuyIn: buyinAmt,
+      currentBank: initBank - buyinAmt,
       players: [{
         user: userId,
         username: creatorUser.username,
         avatarColor: creatorUser.avatarColor,
-        totalBuyIn: AUTO_BUYIN_AMOUNT
+        totalBuyIn: buyinAmt
       }],
       transactions: [{
         type: 'buyin',
@@ -73,7 +82,7 @@ export async function createSessionAction(userId, data) {
         fromUsername: 'Bank',
         to: userId,
         toUsername: creatorUser.username,
-        amount: AUTO_BUYIN_AMOUNT,
+        amount: buyinAmt,
         note: 'Auto buy-in'
       }]
     });
@@ -113,12 +122,13 @@ export async function joinSessionAction(userId, roomCode) {
       return { error: 'You must be a member of the group to join this session' };
     }
 
-    // Auto ₹200 buyin
+    // Auto buyin based on session configuration
+    const buyinTarget = session.defaultBuyIn || 200;
     const warnings = [];
-    if (AUTO_BUYIN_AMOUNT > session.currentBank) {
+    if (buyinTarget > session.currentBank) {
       warnings.push(`Bank only has ₹${session.currentBank} — auto buy-in reduced to bank balance`);
     }
-    const buyinAmount = Math.min(AUTO_BUYIN_AMOUNT, session.currentBank);
+    const buyinAmount = Math.min(buyinTarget, session.currentBank);
 
     session.players.push({
       user: userId,

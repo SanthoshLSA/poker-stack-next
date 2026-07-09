@@ -9,7 +9,7 @@ import { getMyGroupsAction } from '../../actions/groupActions';
 export default function CreateSessionPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
-  const [form, setForm] = useState({ name: '', initialBank: '', groupId: '' });
+  const [form, setForm] = useState({ name: '', initialBank: '', defaultBuyIn: '200', groupId: '' });
   const [groups, setGroups] = useState([]);
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [error, setError] = useState('');
@@ -37,14 +37,19 @@ export default function CreateSessionPage() {
   const handleSubmit = async e => {
     e.preventDefault();
     setError('');
+    const buyinVal = Number(form.defaultBuyIn || 200);
+    const bankVal = Number(form.initialBank);
+
     if (!form.name || form.name.trim().length < 2) { setError('Session name must be at least 2 characters'); return; }
-    if (!form.initialBank || Number(form.initialBank) < 200) { setError('Initial bank must be at least ₹200 (auto buy-in is ₹200)'); return; }
+    if (buyinVal < 1) { setError('Default buy-in must be at least ₹1'); return; }
+    if (!form.initialBank || bankVal < buyinVal) { setError(`Initial bank must be at least default buy-in amount (₹${buyinVal})`); return; }
     if (!form.groupId) { setError('You must select a group'); return; }
 
     setLoading(true);
     const result = await createSessionAction(user._id, {
       name: form.name,
-      initialBank: Number(form.initialBank),
+      initialBank: bankVal,
+      defaultBuyIn: buyinVal,
       groupId: form.groupId
     });
 
@@ -128,10 +133,20 @@ export default function CreateSessionPage() {
                 id="initialBank" name="initialBank" type="number" className="form-input"
                 placeholder="e.g., 5000"
                 value={form.initialBank} onChange={handleChange}
-                min={200} step={1} required
+                min={1} step={1} required
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Default Buy-In / Auto-Buy-In (₹) ♣</label>
+              <input
+                id="defaultBuyIn" name="defaultBuyIn" type="number" className="form-input"
+                placeholder="e.g., 200"
+                value={form.defaultBuyIn} onChange={handleChange}
+                min={1} step={1} required
               />
               <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
-                Minimum ₹200 — each player auto-receives ₹200 on join
+                Each player will automatically receive this amount on join from the bank
               </p>
             </div>
 
@@ -142,7 +157,7 @@ export default function CreateSessionPage() {
               </div>
               <ul style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.7', paddingLeft: '16px' }}>
                 <li>You get a unique 6-character room code</li>
-                <li>Every player gets ₹200 auto buy-in when they join</li>
+                <li>Players automatically receive the configured default buy-in amount on join</li>
                 <li>Only group members can join</li>
                 <li>Stats are tracked within the group</li>
               </ul>

@@ -109,6 +109,12 @@ const sessionSchema = new mongoose.Schema({
     required: true,
     min: 1
   },
+  defaultBuyIn: {
+    type: Number,
+    required: true,
+    default: 200,
+    min: 1
+  },
   currentBank: {
     type: Number,
     required: true
