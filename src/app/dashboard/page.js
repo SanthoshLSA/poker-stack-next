@@ -145,6 +145,9 @@ export default function DashboardPage() {
         </section>
       )}
 
+      {/* ── Random Poker Hand Card ── */}
+      <PokerHandDealer />
+
       {/* ── Join Session ── */}
       <div className="card" style={{ marginBottom: '32px' }}>
         <div className="card-body">
@@ -277,5 +280,132 @@ function SessionCard({ session, userId, isActive }) {
         </div>
       </div>
     </Link>
+  );
+}
+
+// ─── Poker Hand Dealer Component ─────────────────────────────────────────────
+function PokerHandDealer() {
+  const [hand, setHand] = useState([]);
+  const [handStrength, setHandStrength] = useState('');
+
+  const dealHand = () => {
+    const suits = ['♠', '♥', '♦', '♣'];
+    const values = [
+      { code: '2', val: 2 }, { code: '3', val: 3 }, { code: '4', val: 4 }, { code: '5', val: 5 },
+      { code: '6', val: 6 }, { code: '7', val: 7 }, { code: '8', val: 8 }, { code: '9', val: 9 },
+      { code: '10', val: 10 }, { code: 'J', val: 11 }, { code: 'Q', val: 12 }, { code: 'K', val: 13 },
+      { code: 'A', val: 14 }
+    ];
+
+    // Build a fresh deck
+    const deck = [];
+    for (const s of suits) {
+      for (const v of values) {
+        deck.push({ suit: s, ...v });
+      }
+    }
+
+    // Draw 5 random cards
+    const result = [];
+    for (let i = 0; i < 5; i++) {
+      const idx = Math.floor(Math.random() * deck.length);
+      result.push(deck.splice(idx, 1)[0]);
+    }
+
+    // Sort hand by numeric value
+    result.sort((a, b) => a.val - b.val);
+
+    setHand(result);
+    setHandStrength(evaluateHand(result));
+  };
+
+  useEffect(() => {
+    dealHand();
+  }, []);
+
+  // Simple standard 5-card evaluation
+  const evaluateHand = (cards) => {
+    const isFlush = cards.every(c => c.suit === cards[0].suit);
+    
+    // Check straight (handle standard + low Ace straight)
+    let isStraight = false;
+    if (cards[4].val - cards[0].val === 4) {
+      isStraight = new Set(cards.map(c => c.val)).size === 5;
+    } else if (cards[4].val === 14 && cards[0].val === 2 && cards[1].val === 3 && cards[2].val === 4 && cards[3].val === 5) {
+      isStraight = true;
+    }
+
+    // Group values
+    const counts = {};
+    cards.forEach(c => counts[c.val] = (counts[c.val] || 0) + 1);
+    const countArr = Object.values(counts).sort((a, b) => b - a);
+
+    if (isFlush && isStraight) {
+      return cards[4].val === 14 && cards[0].val !== 2 ? '🏆 Royal Flush!' : '🔥 Straight Flush!';
+    }
+    if (countArr[0] === 4) return 'Four of a Kind';
+    if (countArr[0] === 3 && countArr[1] === 2) return 'Full House';
+    if (isFlush) return 'Flush';
+    if (isStraight) return 'Straight';
+    if (countArr[0] === 3) return 'Three of a Kind';
+    if (countArr[0] === 2 && countArr[1] === 2) return 'Two Pair';
+    if (countArr[0] === 2) return 'One Pair';
+
+    const highCardName = cards[4].code === 'A' ? 'Ace' : cards[4].code === 'K' ? 'King' : cards[4].code === 'Q' ? 'Queen' : cards[4].code === 'J' ? 'Jack' : cards[4].code;
+    return `High Card (${highCardName})`;
+  };
+
+  return (
+    <div className="card" style={{ marginBottom: '32px', background: 'radial-gradient(circle at 50% 50%, rgba(201,168,76,0.08) 0%, var(--color-bg-card) 100%)', border: '1px solid rgba(201,168,76,0.2)' }}>
+      <div className="card-body" style={{ textAlign: 'center', padding: '24px 20px' }}>
+        <h3 className="card-title" style={{ color: 'var(--color-gold)', marginBottom: '4px' }}>♠ Random Dealer</h3>
+        <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '20px' }}>Need luck? Deal a test hand</p>
+
+        {/* Card display */}
+        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginBottom: '20px', flexWrap: 'wrap' }}>
+          {hand.map((c, idx) => {
+            const isRed = c.suit === '♥' || c.suit === '♦';
+            return (
+              <div
+                key={idx}
+                style={{
+                  width: '54px',
+                  height: '80px',
+                  background: 'white',
+                  borderRadius: '6px',
+                  border: '1px solid #ccc',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  padding: '6px',
+                  color: isRed ? '#e05252' : '#111',
+                  boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
+                  animation: `slide-up 0.3s ease both ${idx * 0.05}s`
+                }}
+              >
+                <div style={{ fontSize: '14px', fontWeight: 'bold', lineHeight: '1', fontFamily: 'var(--font-display)', textAlign: 'left' }}>
+                  {c.code}
+                </div>
+                <div style={{ fontSize: '24px', alignSelf: 'center', lineHeight: '1' }}>
+                  {c.suit}
+                </div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', lineHeight: '1', fontFamily: 'var(--font-display)', textAlign: 'right', transform: 'rotate(180deg)' }}>
+                  {c.code}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Strength label */}
+        <div style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '16px' }}>
+          {handStrength || 'Dealing...'}
+        </div>
+
+        <button className="btn btn-outline btn-sm" onClick={dealHand}>
+          ♦ Shuffle & Deal
+        </button>
+      </div>
+    </div>
   );
 }

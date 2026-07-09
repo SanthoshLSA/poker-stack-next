@@ -98,14 +98,31 @@ export async function joinGroupAction(userId, inviteCode) {
 export async function getGroupDetailAction(userId, groupId) {
   try {
     await connectDB();
-    const group = await Group.findById(groupId);
+    const group = await Group.findById(groupId).populate('memberStats.user', 'isPrivate');
     if (!group) return { error: 'Group not found' };
 
     const isMember = group.members.some(m => m.toString() === userId);
     if (!isMember) return { error: 'You are not a member of this group' };
 
-    return { group: JSON.parse(JSON.stringify(group)) };
+    // Format memberStats to apply privacy checks on the server or attach isPrivate field
+    const groupObj = group.toObject();
+    groupObj.memberStats = groupObj.memberStats.map(s => {
+      const isPrivate = s.user?.isPrivate || false;
+      const isSelf = s.user?._id?.toString() === userId;
+      return {
+        ...s,
+        user: s.user?._id?.toString() || s.user,
+        isPrivate,
+        // Hide stats if private and not looking at yourself
+        totalProfit: isPrivate && !isSelf ? null : s.totalProfit,
+        highestWin: isPrivate && !isSelf ? null : s.highestWin,
+        highestLoss: isPrivate && !isSelf ? null : s.highestLoss
+      };
+    });
+
+    return { group: JSON.parse(JSON.stringify(groupObj)) };
   } catch (err) {
+    console.error('getGroupDetailAction error:', err);
     return { error: 'Server error fetching group' };
   }
 }

@@ -170,8 +170,8 @@ export default function GroupsPage() {
                         </div>
 
                         {/* Total P/L */}
-                        <div style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: '900', color: (s.totalProfit || 0) >= 0 ? '#22c55e' : '#ef4444' }}>
-                          {formatPL(s.totalProfit)}
+                        <div style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: '900', color: s.totalProfit === null ? 'var(--text-muted)' : (s.totalProfit || 0) >= 0 ? '#22c55e' : '#ef4444' }}>
+                          {s.totalProfit === null ? 'Private' : formatPL(s.totalProfit)}
                         </div>
 
                         {/* Sessions */}
@@ -186,12 +186,12 @@ export default function GroupsPage() {
 
                         {/* Best win */}
                         <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: '13px', color: '#22c55e' }}>
-                          {(s.highestWin || 0) > 0 ? '+' + formatINR(s.highestWin) : '—'}
+                          {s.highestWin === null ? '—' : (s.highestWin || 0) > 0 ? '+' + formatINR(s.highestWin) : '—'}
                         </div>
 
                         {/* Worst loss */}
                         <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: '13px', color: '#ef4444' }}>
-                          {(s.highestLoss || 0) < 0 ? '-' + formatINR(Math.abs(s.highestLoss)) : '—'}
+                          {s.highestLoss === null ? '—' : (s.highestLoss || 0) < 0 ? '-' + formatINR(Math.abs(s.highestLoss)) : '—'}
                         </div>
                       </div>
                     );
