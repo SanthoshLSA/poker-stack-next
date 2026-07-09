@@ -285,187 +285,344 @@ function SessionCard({ session, userId, isActive }) {
 
 // ─── Poker Hand Dealer Component ─────────────────────────────────────────────
 function PokerHandDealer() {
-  const [hand, setHand] = useState([]);
-  const [handStrength, setHandStrength] = useState('');
-  const [rollingCards, setRollingCards] = useState([false, false, false, false, false]);
+  const [deck, setDeck] = useState([]);
+  const [playerHand, setPlayerHand] = useState([]);
+  const [computerHand, setComputerHand] = useState([]);
+  const [communityCards, setCommunityCards] = useState([]);
+  const [revealedCommunityCount, setRevealedCommunityCount] = useState(0); // 0=none, 3=flop, 4=turn, 5=river
+  const [equities, setEquities] = useState({ player: 50, computer: 50 });
+  const [isDealing, setIsDealing] = useState(false);
+  const [rollStates, setRollStates] = useState({ player: [false, false], computer: [false, false], community: [false, false, false, false, false] });
 
-  const dealHand = () => {
-    if (rollingCards.some(r => r)) return;
-    setHandStrength('Shuffling...');
+  // Evaluation helpers
+  const getCardNumericValue = (code) => {
+    const valMap = { '2':2, '3':3, '4':4, '5':5, '6':6, '7':7, '8':8, '9':9, '10':10, 'J':11, 'Q':12, 'K':13, 'A':14 };
+    return valMap[code] || 0;
+  };
 
-    const suits = ['♠', '♥', '♦', '♣'];
-    const values = [
-      { code: '2', val: 2 }, { code: '3', val: 3 }, { code: '4', val: 4 }, { code: '5', val: 5 },
-      { code: '6', val: 6 }, { code: '7', val: 7 }, { code: '8', val: 8 }, { code: '9', val: 9 },
-      { code: '10', val: 10 }, { code: 'J', val: 11 }, { code: 'Q', val: 12 }, { code: 'K', val: 13 },
-      { code: 'A', val: 14 }
-    ];
+  // Evaluate 5 to 7 cards to find best 5-card hand strength value (higher score = better hand)
+  const evaluateSevenCardHand = (cards) => {
+    // Generate all combinations of 5 cards from the set
+    let bestScore = 0;
+    let bestName = 'High Card';
+    const n = cards.length;
 
-    // Build a fresh deck
-    const deck = [];
-    for (const s of suits) {
-      for (const v of values) {
-        deck.push({ suit: s, ...v });
+    // Helper to evaluate 5 cards
+    const eval5 = (fiveCards) => {
+      const suits = fiveCards.map(c => c.suit);
+      const vals = fiveCards.map(c => getCardNumericValue(c.code)).sort((a,b) => a - b);
+      
+      const isFlush = suits.every(s => s === suits[0]);
+      let isStraight = false;
+      if (vals[4] - vals[0] === 4 && new Set(vals).size === 5) {
+        isStraight = true;
+      } else if (vals[4] === 14 && vals[0] === 2 && vals[1] === 3 && vals[2] === 4 && vals[3] === 5) {
+        isStraight = true; // A-2-3-4-5
       }
-    }
 
-    // Draw 5 final random cards
-    const finalHand = [];
-    for (let i = 0; i < 5; i++) {
-      const idx = Math.floor(Math.random() * deck.length);
-      finalHand.push(deck.splice(idx, 1)[0]);
-    }
-    // Sort final hand by numeric value
-    finalHand.sort((a, b) => a.val - b.val);
+      const counts = {};
+      vals.forEach(v => counts[v] = (counts[v] || 0) + 1);
+      const sortedCounts = Object.entries(counts).sort((a, b) => b[1] - a[1] || Number(b[0]) - Number(a[0]));
+      const countArr = sortedCounts.map(c => c[1]);
 
-    // Start rolling all cards
-    const initialRolling = [true, true, true, true, true];
-    setRollingCards(initialRolling);
+      let rank = 1; // High card
+      let tieBreakers = vals.slice().reverse();
 
-    // Interval to randomize cards on screen while shuffling
-    const shuffleInterval = setInterval(() => {
-      setHand(prev => {
-        const next = [...prev];
-        for (let i = 0; i < 5; i++) {
-          // If the card is still rolling (we read from global array or local state trackers safely)
-          // We can use a helper array check directly
-          if (next[i] === undefined || next[i].val === 0) {
-            const tempSuits = ['♠', '♥', '♦', '♣'];
-            const tempCodes = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
-            next[i] = {
-              suit: tempSuits[Math.floor(Math.random() * 4)],
-              code: tempCodes[Math.floor(Math.random() * 13)],
-              val: 0 // Keep val = 0 to signify it is rolling
-            };
+      if (isFlush && isStraight) {
+        rank = vals[4] === 14 && vals[0] !== 2 ? 10 : 9; // Royal or Straight Flush
+      } else if (countArr[0] === 4) {
+        rank = 8; // Four of a kind
+      } else if (countArr[0] === 3 && countArr[1] === 2) {
+        rank = 7; // Full house
+      } else if (isFlush) {
+        rank = 6; // Flush
+      } else if (isStraight) {
+        rank = 5; // Straight
+      } else if (countArr[0] === 3) {
+        rank = 4; // Three of a kind
+      } else if (countArr[0] === 2 && countArr[1] === 2) {
+        rank = 3; // Two pair
+      } else if (countArr[0] === 2) {
+        rank = 2; // One pair
+      }
+
+      // Calculate score value for tie-breakers
+      let score = rank * 1000000;
+      sortedCounts.forEach((c, idx) => {
+        score += Number(c[0]) * Math.pow(15, 4 - idx);
+      });
+
+      const names = ['', 'High Card', 'One Pair', 'Two Pair', 'Three of a Kind', 'Straight', 'Flush', 'Full House', 'Four of a Kind', 'Straight Flush', 'Royal Flush'];
+      return { score, name: names[rank] };
+    };
+
+    // Combination generator
+    for (let a = 0; a < n - 4; a++) {
+      for (let b = a + 1; b < n - 3; b++) {
+        for (let c = b + 1; c < n - 2; c++) {
+          for (let d = c + 1; d < n - 1; d++) {
+            for (let e = d + 1; e < n; e++) {
+              const res = eval5([cards[a], cards[b], cards[c], cards[d], cards[e]]);
+              if (res.score > bestScore) {
+                bestScore = res.score;
+                bestName = res.name;
+              }
+            }
           }
         }
-        return next;
-      });
-    }, 80);
+      }
+    }
+    return { score: bestScore, name: bestName };
+  };
 
-    // Stagger stopping times for each card individually (sped up significantly)
-    const stopTimes = [250, 450, 650, 850, 1050];
+  // Equity calculator: fast Monte Carlo simulation
+  const calculateEquities = (pH, cH, cCards, revCount, fullDeck) => {
+    let pWins = 0;
+    let cWins = 0;
+    let ties = 0;
+    const runs = 200; // Fast simulation
+
+    // Get remaining deck
+    const usedIds = new Set([...pH, ...cH, ...cCards.slice(0, revCount)].map(c => c.code + c.suit));
+    const remainingDeck = fullDeck.filter(c => !usedIds.has(c.code + c.suit));
+
+    for (let r = 0; r < runs; r++) {
+      const simDeck = [...remainingDeck];
+      // Shuffle simDeck
+      for (let i = simDeck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const temp = simDeck[i];
+        simDeck[i] = simDeck[j];
+        simDeck[j] = temp;
+      }
+
+      // Draw remaining community cards
+      const simCommunity = [...cCards.slice(0, revCount)];
+      while (simCommunity.length < 5) {
+        simCommunity.push(simDeck.pop());
+      }
+
+      const pEval = evaluateSevenCardHand([...pH, ...simCommunity]);
+      const cEval = evaluateSevenCardHand([...cH, ...simCommunity]);
+
+      if (pEval.score > cEval.score) pWins++;
+      else if (cEval.score > pEval.score) cWins++;
+      else ties++;
+    }
+
+    const total = pWins + cWins + ties;
+    return {
+      player: Math.round(((pWins + ties / 2) / total) * 100),
+      computer: Math.round(((cWins + ties / 2) / total) * 100)
+    };
+  };
+
+  const dealNewGame = () => {
+    if (isDealing) return;
+    setIsDealing(true);
+    setRevealedCommunityCount(0);
+
+    const suits = ['♠', '♥', '♦', '♣'];
+    const codes = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
     
-    stopTimes.forEach((time, idx) => {
-      setTimeout(() => {
-        setRollingCards(prev => {
-          const next = [...prev];
-          next[idx] = false;
-          return next;
-        });
-        
-        setHand(prev => {
-          const next = [...prev];
-          next[idx] = finalHand[idx];
-          return next;
-        });
+    // Build and shuffle deck
+    const freshDeck = [];
+    for (const s of suits) {
+      for (const c of codes) {
+        freshDeck.push({ code: c, suit: s });
+      }
+    }
+    for (let i = freshDeck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const temp = freshDeck[i];
+      freshDeck[i] = freshDeck[j];
+      freshDeck[j] = temp;
+    }
 
-        // If this is the last card stopping, clear interval and evaluate hand
-        if (idx === 4) {
-          clearInterval(shuffleInterval);
-          setHandStrength(evaluateHand(finalHand));
-        }
-      }, time);
+    const pH = [freshDeck.pop(), freshDeck.pop()];
+    const cH = [freshDeck.pop(), freshDeck.pop()];
+    const cCards = [freshDeck.pop(), freshDeck.pop(), freshDeck.pop(), freshDeck.pop(), freshDeck.pop()];
+
+    setDeck(freshDeck);
+    setPlayerHand(pH);
+    setComputerHand(cH);
+    setCommunityCards(cCards);
+
+    // Staggered roll animations
+    setRollStates({
+      player: [true, true],
+      computer: [true, true],
+      community: [false, false, false, false, false]
     });
+
+    setTimeout(() => {
+      setRollStates(prev => ({ ...prev, player: [false, false] }));
+    }, 400);
+
+    setTimeout(() => {
+      setRollStates(prev => ({ ...prev, computer: [false, false] }));
+      setIsDealing(false);
+      // Initial pre-flop equities
+      const eq = calculateEquities(pH, cH, cCards, 0, freshDeck);
+      setEquities(eq);
+    }, 800);
+  };
+
+  const revealNextStage = () => {
+    if (isDealing) return;
+    let nextCount = 0;
+    if (revealedCommunityCount === 0) nextCount = 3; // flop
+    else if (revealedCommunityCount === 3) nextCount = 4; // turn
+    else if (revealedCommunityCount === 4) nextCount = 5; // river
+    else return;
+
+    // Trigger roll animation for newly revealed community cards
+    setRollStates(prev => {
+      const communityRoll = [...prev.community];
+      if (revealedCommunityCount === 0) communityRoll[0] = communityRoll[1] = communityRoll[2] = true;
+      else if (revealedCommunityCount === 3) communityRoll[3] = true;
+      else if (revealedCommunityCount === 4) communityRoll[4] = true;
+      return { ...prev, community: communityRoll };
+    });
+
+    setIsDealing(true);
+    setTimeout(() => {
+      setRevealedCommunityCount(nextCount);
+      setRollStates({
+        player: [false, false],
+        computer: [false, false],
+        community: [false, false, false, false, false]
+      });
+      setIsDealing(false);
+      // Recalculate equities with newly revealed cards
+      const eq = calculateEquities(playerHand, computerHand, communityCards, nextCount, deck);
+      setEquities(eq);
+    }, 500);
   };
 
   useEffect(() => {
-    dealHand();
+    dealNewGame();
   }, []);
 
-  // Simple standard 5-card evaluation
-  const evaluateHand = (cards) => {
-    const isFlush = cards.every(c => c.suit === cards[0].suit);
-    
-    // Check straight (handle standard + low Ace straight)
-    let isStraight = false;
-    if (cards[4].val - cards[0].val === 4) {
-      isStraight = new Set(cards.map(c => c.val)).size === 5;
-    } else if (cards[4].val === 14 && cards[0].val === 2 && cards[1].val === 3 && cards[2].val === 4 && cards[3].val === 5) {
-      isStraight = true;
-    }
-
-    // Group values
-    const counts = {};
-    cards.forEach(c => counts[c.val] = (counts[c.val] || 0) + 1);
-    const countArr = Object.values(counts).sort((a, b) => b - a);
-
-    if (isFlush && isStraight) {
-      return cards[4].val === 14 && cards[0].val !== 2 ? '🏆 Royal Flush!' : '🔥 Straight Flush!';
-    }
-    if (countArr[0] === 4) return 'Four of a Kind';
-    if (countArr[0] === 3 && countArr[1] === 2) return 'Full House';
-    if (isFlush) return 'Flush';
-    if (isStraight) return 'Straight';
-    if (countArr[0] === 3) return 'Three of a Kind';
-    if (countArr[0] === 2 && countArr[1] === 2) return 'Two Pair';
-    if (countArr[0] === 2) return 'One Pair';
-
-    const highCardName = cards[4].code === 'A' ? 'Ace' : cards[4].code === 'K' ? 'King' : cards[4].code === 'Q' ? 'Queen' : cards[4].code === 'J' ? 'Jack' : cards[4].code;
-    return `High Card (${highCardName})`;
+  const getHandDesc = (pH, cCards, count) => {
+    if (count === 0) return 'Pre-flop';
+    const evalRes = evaluateSevenCardHand([...pH, ...cCards.slice(0, count)]);
+    return evalRes.name;
   };
 
-  const isAnyRolling = rollingCards.some(r => r);
+  // Card component helper with custom mobile widths
+  const renderCard = (c, isFacedown, isRolling) => {
+    if (isFacedown) {
+      return (
+        <div style={{
+          width: '38px', height: '58px',
+          background: 'linear-gradient(135deg, var(--color-gold-dark), var(--color-gold))',
+          borderRadius: '4px', border: '1px solid rgba(255,255,255,0.2)',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontFamily: 'var(--font-display)', color: '#0a0a0f', fontSize: '16px', fontWeight: 'bold'
+        }}>
+          ♠
+        </div>
+      );
+    }
+
+    const isRed = c.suit === '♥' || c.suit === '♦';
+    return (
+      <div style={{
+        width: '38px', height: '58px',
+        background: 'white', borderRadius: '4px', border: '1px solid #ddd',
+        display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+        padding: '3px', color: isRed ? '#e05252' : '#111',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+        position: 'relative',
+        animation: isRolling ? `card-slot-roll 0.25s ease-in-out infinite alternate` : 'none'
+      }}>
+        {/* Top Left */}
+        <div style={{ position: 'absolute', top: '2px', left: '2px', display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: '0.9' }}>
+          <span style={{ fontSize: '9px', fontWeight: '900', fontFamily: 'var(--font-display)' }}>{c.code}</span>
+          <span style={{ fontSize: '8px' }}>{c.suit}</span>
+        </div>
+        {/* Center */}
+        <div style={{ fontSize: '18px', position: 'absolute', top: '52%', left: '50%', transform: 'translate(-50%, -50%)', lineHeight: '1' }}>
+          {c.suit}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="card" style={{ marginBottom: '32px', background: 'radial-gradient(circle at 50% 50%, rgba(201,168,76,0.08) 0%, var(--color-bg-card) 100%)', border: '1px solid rgba(201,168,76,0.2)' }}>
-      <div className="card-body" style={{ textAlign: 'center', padding: '24px 20px' }}>
-        <h3 className="card-title" style={{ color: 'var(--color-gold)', marginBottom: '4px' }}>♠ Random Dealer</h3>
-        <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '20px' }}>Need luck? Deal a test hand</p>
+      <div className="card-body" style={{ textAlign: 'center', padding: '20px 16px' }}>
+        <h3 className="card-title" style={{ color: 'var(--color-gold)', marginBottom: '4px' }}>♠ Texas Hold'em Dealer</h3>
+        <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '20px' }}>Test your pocket cards against the dealer</p>
 
-        {/* Card display */}
-        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginBottom: '24px', flexWrap: 'wrap', overflow: 'hidden', padding: '8px 0' }}>
-          {hand.map((c, idx) => {
-            const isRed = c.suit === '♥' || c.suit === '♦';
-            const isThisCardRolling = rollingCards[idx];
-            return (
-              <div
-                key={idx}
-                style={{
-                  width: '56px',
-                  height: '84px',
-                  background: 'white',
-                  borderRadius: '6px',
-                  border: '1px solid #ddd',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  padding: '6px',
-                  color: isRed ? '#e05252' : '#111',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                  position: 'relative',
-                  animation: isThisCardRolling ? `card-slot-roll 0.25s ease-in-out infinite alternate` : 'none',
-                }}
-              >
-                {/* Top Left Value & Suit */}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'absolute', top: '4px', left: '4px', lineHeight: '1' }}>
-                  <span style={{ fontSize: '12px', fontWeight: '900', fontFamily: 'var(--font-display)' }}>{c.code}</span>
-                  <span style={{ fontSize: '10px' }}>{c.suit}</span>
-                </div>
+        {/* ── Hands Layout ── */}
+        <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
+          
+          {/* User Hand */}
+          <div style={{ flex: '1', minWidth: '120px', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Your Hand</div>
+            <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', marginBottom: '8px' }}>
+              {playerHand.map((c, i) => renderCard(c, false, rollStates.player[i]))}
+            </div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '13px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+              {getHandDesc(playerHand, communityCards, revealedCommunityCount)}
+            </div>
+            <div style={{ fontSize: '18px', fontWeight: '900', color: '#22c55e', marginTop: '6px' }}>
+              {equities.player}% Equity
+            </div>
+          </div>
 
-                {/* Big Center Symbol */}
-                <div style={{ fontSize: '26px', alignSelf: 'center', position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', lineHeight: '1' }}>
-                  {c.suit}
-                </div>
+          {/* VS Divider */}
+          <div style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--text-muted)', fontFamily: 'var(--font-display)' }}>VS</div>
 
-                {/* Bottom Right Value & Suit (Upside Down) */}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'absolute', bottom: '4px', right: '4px', lineHeight: '1', transform: 'rotate(180deg)' }}>
-                  <span style={{ fontSize: '12px', fontWeight: '900', fontFamily: 'var(--font-display)' }}>{c.code}</span>
-                  <span style={{ fontSize: '10px' }}>{c.suit}</span>
-                </div>
-              </div>
-            );
-          })}
+          {/* Computer Hand */}
+          <div style={{ flex: '1', minWidth: '120px', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Opponent</div>
+            <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', marginBottom: '8px' }}>
+              {computerHand.map((c, i) => renderCard(c, false, rollStates.computer[i]))}
+            </div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '13px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+              {getHandDesc(computerHand, communityCards, revealedCommunityCount)}
+            </div>
+            <div style={{ fontSize: '18px', fontWeight: '900', color: '#e05252', marginTop: '6px' }}>
+              {equities.computer}% Equity
+            </div>
+          </div>
+
         </div>
 
-        {/* Strength label */}
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '16px', minHeight: '27px' }}>
-          {handStrength}
+        {/* ── Community Cards ── */}
+        <div style={{ marginBottom: '24px', padding: '16px', background: 'rgba(7, 8, 13, 0.4)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '10px', fontFamily: 'var(--font-display)' }}>
+            Community Cards ({revealedCommunityCount === 0 ? 'Pre-flop' : revealedCommunityCount === 3 ? 'Flop' : revealedCommunityCount === 4 ? 'Turn' : 'River'})
+          </div>
+          <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+            {communityCards.map((c, idx) => {
+              const isFacedown = idx >= revealedCommunityCount;
+              return (
+                <div key={idx}>
+                  {renderCard(c, isFacedown, rollStates.community[idx])}
+                </div>
+              );
+            })}
+          </div>
         </div>
 
-        <button className="btn btn-outline btn-sm" onClick={dealHand} disabled={isAnyRolling}>
-          {isAnyRolling ? 'Shuffling...' : '♦ Shuffle & Deal'}
-        </button>
+        {/* Action button */}
+        <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+          <button className="btn btn-ghost btn-sm" onClick={dealNewGame} disabled={isDealing}>
+            ♠ New Game
+          </button>
+          
+          {revealedCommunityCount < 5 && (
+            <button className="btn btn-primary btn-sm" onClick={revealNextStage} disabled={isDealing}>
+              {revealedCommunityCount === 0 ? 'Deal Flop ♦' : revealedCommunityCount === 3 ? 'Deal Turn ♥' : 'Deal River ♣'}
+            </button>
+          )}
+        </div>
+
       </div>
     </div>
   );
