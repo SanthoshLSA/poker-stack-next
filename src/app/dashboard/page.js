@@ -287,11 +287,10 @@ function SessionCard({ session, userId, isActive }) {
 function PokerHandDealer() {
   const [hand, setHand] = useState([]);
   const [handStrength, setHandStrength] = useState('');
-  const [isRolling, setIsRolling] = useState(false);
+  const [rollingCards, setRollingCards] = useState([false, false, false, false, false]);
 
   const dealHand = () => {
-    if (isRolling) return;
-    setIsRolling(true);
+    if (rollingCards.some(r => r)) return;
     setHandStrength('Shuffling...');
 
     const suits = ['♠', '♥', '♦', '♣'];
@@ -310,22 +309,64 @@ function PokerHandDealer() {
       }
     }
 
-    // Draw 5 random cards
-    const result = [];
+    // Draw 5 final random cards
+    const finalHand = [];
     for (let i = 0; i < 5; i++) {
       const idx = Math.floor(Math.random() * deck.length);
-      result.push(deck.splice(idx, 1)[0]);
+      finalHand.push(deck.splice(idx, 1)[0]);
     }
+    // Sort final hand by numeric value
+    finalHand.sort((a, b) => a.val - b.val);
 
-    // Sort hand by numeric value
-    result.sort((a, b) => a.val - b.val);
+    // Start rolling all cards
+    const initialRolling = [true, true, true, true, true];
+    setRollingCards(initialRolling);
 
-    // Stop rolling animation after 800ms
-    setTimeout(() => {
-      setHand(result);
-      setHandStrength(evaluateHand(result));
-      setIsRolling(false);
-    }, 800);
+    // Interval to randomize cards on screen while shuffling
+    const shuffleInterval = setInterval(() => {
+      setHand(prev => {
+        const next = [...prev];
+        for (let i = 0; i < 5; i++) {
+          // If the card is still rolling (we read from global array or local state trackers safely)
+          // We can use a helper array check directly
+          if (next[i] === undefined || next[i].val === 0) {
+            const tempSuits = ['♠', '♥', '♦', '♣'];
+            const tempCodes = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+            next[i] = {
+              suit: tempSuits[Math.floor(Math.random() * 4)],
+              code: tempCodes[Math.floor(Math.random() * 13)],
+              val: 0 // Keep val = 0 to signify it is rolling
+            };
+          }
+        }
+        return next;
+      });
+    }, 80);
+
+    // Stagger stopping times for each card individually
+    const stopTimes = [500, 900, 1300, 1700, 2100];
+    
+    stopTimes.forEach((time, idx) => {
+      setTimeout(() => {
+        setRollingCards(prev => {
+          const next = [...prev];
+          next[idx] = false;
+          return next;
+        });
+        
+        setHand(prev => {
+          const next = [...prev];
+          next[idx] = finalHand[idx];
+          return next;
+        });
+
+        // If this is the last card stopping, clear interval and evaluate hand
+        if (idx === 4) {
+          clearInterval(shuffleInterval);
+          setHandStrength(evaluateHand(finalHand));
+        }
+      }, time);
+    });
   };
 
   useEffect(() => {
@@ -364,6 +405,8 @@ function PokerHandDealer() {
     return `High Card (${highCardName})`;
   };
 
+  const isAnyRolling = rollingCards.some(r => r);
+
   return (
     <div className="card" style={{ marginBottom: '32px', background: 'radial-gradient(circle at 50% 50%, rgba(201,168,76,0.08) 0%, var(--color-bg-card) 100%)', border: '1px solid rgba(201,168,76,0.2)' }}>
       <div className="card-body" style={{ textAlign: 'center', padding: '24px 20px' }}>
@@ -374,6 +417,7 @@ function PokerHandDealer() {
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginBottom: '24px', flexWrap: 'wrap', overflow: 'hidden', padding: '8px 0' }}>
           {hand.map((c, idx) => {
             const isRed = c.suit === '♥' || c.suit === '♦';
+            const isThisCardRolling = rollingCards[idx];
             return (
               <div
                 key={idx}
@@ -390,8 +434,7 @@ function PokerHandDealer() {
                   color: isRed ? '#e05252' : '#111',
                   boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
                   position: 'relative',
-                  animation: isRolling ? `card-slot-roll 0.4s ease-in-out infinite alternate` : 'none',
-                  animationDelay: `${idx * 0.08}s`
+                  animation: isThisCardRolling ? `card-slot-roll 0.25s ease-in-out infinite alternate` : 'none',
                 }}
               >
                 {/* Top Left Value & Suit */}
@@ -420,8 +463,8 @@ function PokerHandDealer() {
           {handStrength}
         </div>
 
-        <button className="btn btn-outline btn-sm" onClick={dealHand} disabled={isRolling}>
-          {isRolling ? 'Shuffling...' : '♦ Shuffle & Deal'}
+        <button className="btn btn-outline btn-sm" onClick={dealHand} disabled={isAnyRolling}>
+          {isAnyRolling ? 'Shuffling...' : '♦ Shuffle & Deal'}
         </button>
       </div>
     </div>
