@@ -170,12 +170,6 @@ export default function DashboardPage() {
         </section>
       )}
 
-      {/* ── Random Poker Hand Card ── */}
-      <PokerHandDealer />
-
-      {/* ── Blackjack Minigame Card ── */}
-      <BlackjackDealer />
-
       {/* ── Sessions ── */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
@@ -196,7 +190,7 @@ export default function DashboardPage() {
           )}
 
           {pastSessions.length > 0 && (
-            <section>
+            <section style={{ marginBottom: '32px' }}>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-secondary)', marginBottom: '14px' }}>
                 Past Sessions
               </h2>
@@ -207,7 +201,7 @@ export default function DashboardPage() {
           )}
 
           {sessions.length === 0 && groups.length > 0 && (
-            <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+            <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)', marginBottom: '32px' }}>
               <div style={{ fontSize: '32px', marginBottom: '16px', color: 'var(--color-gold)' }}>♠</div>
               <p style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: '700', color: 'var(--text-secondary)', marginBottom: '8px' }}>No sessions yet</p>
               <p style={{ marginBottom: '20px', fontSize: '14px' }}>Create your first session within a group.</p>
@@ -216,7 +210,7 @@ export default function DashboardPage() {
           )}
 
           {sessions.length === 0 && groups.length === 0 && !loading && (
-            <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+            <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)', marginBottom: '32px' }}>
               <div style={{ fontSize: '32px', marginBottom: '16px', color: 'var(--color-gold)' }}>♥</div>
               <p style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: '700', color: 'var(--text-secondary)', marginBottom: '8px' }}>No groups yet</p>
               <p style={{ marginBottom: '20px', fontSize: '14px' }}>Join or create a group to start playing.</p>
@@ -225,6 +219,12 @@ export default function DashboardPage() {
           )}
         </>
       )}
+
+      {/* ── Random Poker Hand Card ── */}
+      <PokerHandDealer />
+
+      {/* ── Blackjack Minigame Card ── */}
+      <BlackjackDealer />
     </div>
   );
 }
