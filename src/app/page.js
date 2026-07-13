@@ -9,12 +9,6 @@ export default function LandingPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
-  useEffect(() => {
-    if (!loading && user) {
-      router.push('/dashboard');
-    }
-  }, [user, loading, router]);
-
   if (loading) return null;
 
   return (
@@ -47,12 +41,20 @@ export default function LandingPage() {
         </p>
 
         <div className="landing-actions" style={{ display: 'flex', gap: '14px', justifyContent: 'center', flexWrap: 'wrap' }}>
-          <Link href="/register" className="btn btn-primary" style={{ padding: '14px 36px', fontSize: '16px' }}>
-            ♠ Join the Table
-          </Link>
-          <Link href="/login" className="btn btn-outline" style={{ padding: '14px 36px', fontSize: '16px' }}>
-            Login
-          </Link>
+          {user ? (
+            <Link href="/dashboard" className="btn btn-primary" style={{ padding: '14px 36px', fontSize: '16px' }}>
+              ♠ Go to Dashboard
+            </Link>
+          ) : (
+            <>
+              <Link href="/register" className="btn btn-primary" style={{ padding: '14px 36px', fontSize: '16px' }}>
+                ♠ Join the Table
+              </Link>
+              <Link href="/login" className="btn btn-outline" style={{ padding: '14px 36px', fontSize: '16px' }}>
+                Login
+              </Link>
+            </>
+          )}
         </div>
       </div>
 
