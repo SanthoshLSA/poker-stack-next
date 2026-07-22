@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
-import { getMySessionsAction, joinSessionAction } from '../actions/sessionActions';
+import { getMySessionsAction, joinSessionAction, migratePastSessionsAction } from '../actions/sessionActions';
 import { getMyGroupsAction } from '../actions/groupActions';
 import { getMeAction } from '../actions/authActions';
 
@@ -38,6 +38,19 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!authLoading && !user) { router.push('/login'); return; }
     if (user) {
+      // Trigger win recount migration for past sessions once
+      const hasMigrated = localStorage.getItem('poker_migrated_breakeven_v1');
+      if (!hasMigrated) {
+        migratePastSessionsAction(user._id).then(res => {
+          if (res.success) {
+            localStorage.setItem('poker_migrated_breakeven_v1', 'true');
+            getMeAction(user._id).then(meRes => {
+              if (!meRes.error) updateUser(meRes.user);
+            });
+          }
+        });
+      }
+
       Promise.all([
         getMySessionsAction(user._id),
         getMyGroupsAction(user._id),
