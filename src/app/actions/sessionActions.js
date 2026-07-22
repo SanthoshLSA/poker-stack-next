@@ -408,7 +408,7 @@ export async function endSessionAction(userId, roomCode, finalStacks) {
       try {
         const userDoc = await User.findById(player.user);
         if (userDoc) {
-          const incUpdate = { totalProfit: profit, sessionsPlayed: 1, sessionsWon: profit > 0 ? 1 : 0 };
+          const incUpdate = { totalProfit: profit, sessionsPlayed: 1, sessionsWon: profit >= 0 ? 1 : 0 };
           const setUpdate = {};
           if (profit > 0 && profit > (userDoc.highestWin || 0)) setUpdate.highestWin = profit;
           if (profit < 0 && profit < (userDoc.highestLoss || 0)) setUpdate.highestLoss = profit;
@@ -446,9 +446,9 @@ export async function endSessionAction(userId, roomCode, finalStacks) {
               const ms = group.memberStats[idx];
               ms.sessionsPlayed = (ms.sessionsPlayed || 0) + 1;
               ms.totalProfit = (ms.totalProfit || 0) + profit;
-              if (profit > 0) {
+              if (profit >= 0) {
                 ms.sessionsWon = (ms.sessionsWon || 0) + 1;
-                if (profit > (ms.highestWin || 0)) ms.highestWin = profit;
+                if (profit > 0 && profit > (ms.highestWin || 0)) ms.highestWin = profit;
               }
               if (profit < 0 && profit < (ms.highestLoss || 0)) ms.highestLoss = profit;
               // mark modified so Mongoose saves it
@@ -459,7 +459,7 @@ export async function endSessionAction(userId, roomCode, finalStacks) {
                 username: player.username,
                 avatarColor: player.avatarColor || '#c9a84c',
                 sessionsPlayed: 1,
-                sessionsWon: profit > 0 ? 1 : 0,
+                sessionsWon: profit >= 0 ? 1 : 0,
                 totalProfit: profit,
                 highestWin: profit > 0 ? profit : 0,
                 highestLoss: profit < 0 ? profit : 0
