@@ -1005,7 +1005,7 @@ function SandeezChallengeTracker({ userId, pastSessions }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
           <div>
             <div className="section-badge" style={{ background: 'rgba(201,168,76,0.15)', color: 'var(--color-gold)', border: '1px solid rgba(201,168,76,0.3)', marginBottom: '6px' }}>
-              🎯 Sandeez Exclusive
+              Sandeez Exclusive
             </div>
             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: '900', color: 'var(--text-primary)', letterSpacing: '0.04em' }}>
               30-Session Loss Recovery Challenge (₹31,000 Target)
@@ -1016,7 +1016,7 @@ function SandeezChallengeTracker({ userId, pastSessions }) {
           </div>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <button className="btn btn-secondary btn-sm" onClick={() => setShowImportModal(true)}>
-              📥 Import Session
+              Import Session
             </button>
             <button className="btn btn-primary btn-sm" onClick={() => setShowAddModal(true)}>
               + Log Session
@@ -1073,28 +1073,28 @@ function SandeezChallengeTracker({ userId, pastSessions }) {
         {/* Analytics & Detailed Breakdown */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px', marginBottom: '20px' }}>
           <div style={{ padding: '10px 12px', background: 'rgba(239,68,68,0.06)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(239,68,68,0.2)' }}>
-            <div style={{ fontSize: '11px', color: '#ef4444', fontFamily: 'var(--font-display)', fontWeight: '700' }}>🛑 Bust (-₹1.5k)</div>
+            <div style={{ fontSize: '11px', color: '#ef4444', fontFamily: 'var(--font-display)', fontWeight: '700' }}>Bust Sessions (-₹1.5k)</div>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: '900', color: '#ef4444', marginTop: '2px' }}>
               {summary.bustSessionsCount} sessions
             </div>
           </div>
 
           <div style={{ padding: '10px 12px', background: 'rgba(34,197,94,0.06)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(34,197,94,0.2)' }}>
-            <div style={{ fontSize: '11px', color: '#22c55e', fontFamily: 'var(--font-display)', fontWeight: '700' }}>🎉 Profit Sessions</div>
+            <div style={{ fontSize: '11px', color: '#22c55e', fontFamily: 'var(--font-display)', fontWeight: '700' }}>Profit Sessions</div>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: '900', color: '#22c55e', marginTop: '2px' }}>
               {summary.profitSessionsCount} sessions
             </div>
           </div>
 
           <div style={{ padding: '10px 12px', background: 'rgba(201,168,76,0.06)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(201,168,76,0.2)' }}>
-            <div style={{ fontSize: '11px', color: 'var(--color-gold)', fontFamily: 'var(--font-display)', fontWeight: '700' }}>📈 Avg Win</div>
+            <div style={{ fontSize: '11px', color: 'var(--color-gold)', fontFamily: 'var(--font-display)', fontWeight: '700' }}>Avg Win</div>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: '900', color: 'var(--color-gold)', marginTop: '2px' }}>
               +₹{summary.avgWinningProfit.toLocaleString('en-IN')}
             </div>
           </div>
 
           <div style={{ padding: '10px 12px', background: 'rgba(201,168,76,0.12)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(201,168,76,0.3)' }}>
-            <div style={{ fontSize: '11px', color: 'var(--color-gold)', fontFamily: 'var(--font-display)', fontWeight: '700' }}>⚡ Req Avg / Session</div>
+            <div style={{ fontSize: '11px', color: 'var(--color-gold)', fontFamily: 'var(--font-display)', fontWeight: '700' }}>Req Avg / Session</div>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: '900', color: 'var(--color-gold)', marginTop: '2px' }}>
               ₹{summary.requiredAvgProfit.toLocaleString('en-IN')}
             </div>
@@ -1105,9 +1105,9 @@ function SandeezChallengeTracker({ userId, pastSessions }) {
         {summary.scenarios && summary.scenarios.length > 0 && (
           <div style={{ background: 'rgba(0,0,0,0.2)', padding: '14px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', marginBottom: '24px' }}>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '13px', fontWeight: '800', color: 'var(--color-gold)', letterSpacing: '0.05em', marginBottom: '8px' }}>
-              🔮 REALISTIC RECOVERY PREDICTIONS
+              REALISTIC RECOVERY PREDICTIONS (UP TO 10 BUSTS)
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '220px', overflowY: 'auto' }}>
               {summary.scenarios.map((sc, i) => (
                 <div key={i} style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ color: 'var(--color-gold)', fontWeight: '700' }}>•</span>
@@ -1121,7 +1121,7 @@ function SandeezChallengeTracker({ userId, pastSessions }) {
         {/* Session Log List */}
         <div>
           <h4 style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '12px', letterSpacing: '0.05em' }}>
-            📜 Logged Challenge Sessions ({entries.length})
+            Logged Challenge Sessions ({entries.length})
           </h4>
 
           {entries.length === 0 ? (
@@ -1169,7 +1169,7 @@ function SandeezChallengeTracker({ userId, pastSessions }) {
                           {isWin ? '+' : ''}₹{p.toLocaleString('en-IN')}
                         </div>
                         <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.08em', color: isBust ? '#ef4444' : isWin ? '#22c55e' : 'var(--text-muted)', fontFamily: 'var(--font-display)', fontWeight: '700' }}>
-                          {isBust ? '🛑 Bust (-₹1.5k)' : isWin ? '🎉 Profit' : isTie ? '⚖️ Breakeven' : '📉 Loss'}
+                          {isBust ? 'Bust (-₹1.5k)' : isWin ? 'Profit' : isTie ? 'Breakeven' : 'Loss'}
                         </div>
                       </div>
 
@@ -1180,7 +1180,7 @@ function SandeezChallengeTracker({ userId, pastSessions }) {
                         onClick={() => handleDelete(entry._id)}
                         title="Delete session from challenge tracker"
                       >
-                        🗑️ Delete
+                        Delete
                       </button>
                     </div>
                   </div>
@@ -1264,7 +1264,7 @@ function ChallengeLogModal({ userId, onClose, onSuccess, onError }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px' }}>
         <div className="modal-header">
-          <h2 className="modal-title">🎯 Log Challenge Session</h2>
+          <h2 className="modal-title">Log Challenge Session</h2>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
         <div className="modal-body">
@@ -1363,7 +1363,7 @@ function ChallengeImportModal({ userId, pastSessions, loggedLinkedIds, onClose, 
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px' }}>
         <div className="modal-header">
-          <h2 className="modal-title">📥 Import Ended Session</h2>
+          <h2 className="modal-title">Import Ended Session</h2>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
         <div className="modal-body">

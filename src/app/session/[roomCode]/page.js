@@ -22,6 +22,7 @@ export default function SessionRoomPage() {
   const router = useRouter();
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [showTxModal, setShowTxModal] = useState(false);
   const [showEndModal, setShowEndModal] = useState(false);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);

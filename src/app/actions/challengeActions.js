@@ -61,36 +61,29 @@ export async function getChallengeAction(userId) {
       ? Math.ceil(remainingToRecover / remainingSessions)
       : 0;
 
-    // Predictions / Scenarios
+    // Predictions / Scenarios (Up to 10 busts)
     const scenarios = [];
     if (remainingSessions > 0 && remainingToRecover > 0) {
-      // 0 additional busts
-      scenarios.push({
-        additionalBusts: 0,
-        remainingWinsNeeded: remainingSessions,
-        requiredAvg: requiredAvgProfit,
-        description: `If 0 more sessions bust, you need an average profit of ₹${requiredAvgProfit.toLocaleString('en-IN')}/session across your remaining ${remainingSessions} session${remainingSessions !== 1 ? 's' : ''}.`
-      });
+      const maxBustsToCalculate = Math.min(10, remainingSessions - 1);
+      for (let busts = 0; busts <= maxBustsToCalculate; busts++) {
+        const remainingWinningSessions = remainingSessions - busts;
+        if (remainingWinningSessions <= 0) break;
 
-      // 1 additional bust
-      if (remainingSessions > 1) {
-        const req1 = Math.ceil((remainingToRecover + MAX_SESSION_LOSS) / (remainingSessions - 1));
-        scenarios.push({
-          additionalBusts: 1,
-          remainingWinsNeeded: remainingSessions - 1,
-          requiredAvg: req1,
-          description: `If 1 more session busts (-₹${MAX_SESSION_LOSS}), your remaining ${remainingSessions - 1} session${remainingSessions - 1 !== 1 ? 's' : ''} will require an average profit of ₹${req1.toLocaleString('en-IN')}.`
-        });
-      }
+        const totalNeeded = remainingToRecover + (MAX_SESSION_LOSS * busts);
+        const reqAvg = Math.ceil(totalNeeded / remainingWinningSessions);
 
-      // 2 additional busts
-      if (remainingSessions > 2) {
-        const req2 = Math.ceil((remainingToRecover + (MAX_SESSION_LOSS * 2)) / (remainingSessions - 2));
+        let desc = '';
+        if (busts === 0) {
+          desc = `0 additional busts: Need an average profit of ₹${reqAvg.toLocaleString('en-IN')}/session across your remaining ${remainingWinningSessions} session${remainingWinningSessions !== 1 ? 's' : ''}.`;
+        } else {
+          desc = `${busts} additional bust${busts > 1 ? 's' : ''} (-₹${(MAX_SESSION_LOSS * busts).toLocaleString('en-IN')}): Remaining ${remainingWinningSessions} session${remainingWinningSessions !== 1 ? 's' : ''} will require an average profit of ₹${reqAvg.toLocaleString('en-IN')}/session.`;
+        }
+
         scenarios.push({
-          additionalBusts: 2,
-          remainingWinsNeeded: remainingSessions - 2,
-          requiredAvg: req2,
-          description: `If 2 more sessions bust (-₹${MAX_SESSION_LOSS * 2}), your remaining ${remainingSessions - 2} session${remainingSessions - 2 !== 1 ? 's' : ''} will require an average profit of ₹${req2.toLocaleString('en-IN')}.`
+          additionalBusts: busts,
+          remainingWinsNeeded: remainingWinningSessions,
+          requiredAvg: reqAvg,
+          description: desc
         });
       }
     }
