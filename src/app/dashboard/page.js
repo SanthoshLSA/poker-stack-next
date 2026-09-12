@@ -1,12 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
 import { getMySessionsAction, joinSessionAction, migratePastSessionsAction } from '../actions/sessionActions';
 import { getMyGroupsAction } from '../actions/groupActions';
 import { getMeAction } from '../actions/authActions';
+import {
+  getChallengeAction,
+  addChallengeSessionAction,
+  deleteChallengeSessionAction,
+  importSessionToChallengeAction
+} from '../actions/challengeActions';
 
 const formatINR = n => '₹' + Number(n || 0).toLocaleString('en-IN');
 const formatPL = n => {
@@ -137,6 +143,11 @@ export default function DashboardPage() {
           </div>
         ))}
       </div>
+
+      {/* ── Sandeez 30-Session Recovery Challenge ── */}
+      {user?.username?.toLowerCase() === 'sandeez' && (
+        <SandeezChallengeTracker userId={user._id} pastSessions={pastSessions} />
+      )}
 
       {/* ── Groups ── */}
       {groups.length > 0 && (
@@ -920,6 +931,500 @@ function BlackjackDealer() {
           )}
         </div>
 
+      </div>
+    </div>
+  );
+}
+
+// ─── Sandeez 30-Session Recovery Challenge Tracker Component ──────────────────
+function SandeezChallengeTracker({ userId, pastSessions }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const loadTracker = useCallback(async () => {
+    const res = await getChallengeAction(userId);
+    if (!res.error) {
+      setData(res);
+    }
+    setLoading(false);
+  }, [userId]);
+
+  useEffect(() => {
+    loadTracker();
+  }, [loadTracker]);
+
+  const showToastMsg = (msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  const handleDelete = async (entryId) => {
+    if (!confirm('Delete this challenge session entry? Stats will be recalculated.')) return;
+    const res = await deleteChallengeSessionAction(userId, entryId);
+    if (res.error) {
+      showToastMsg(res.error, 'error');
+    } else {
+      showToastMsg('Session entry deleted!');
+      loadTracker();
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="card" style={{ marginBottom: '32px', padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>
+        Loading 30-Session Recovery Tracker...
+      </div>
+    );
+  }
+
+  if (!data || !data.summary) return null;
+
+  const { summary, entries } = data;
+
+  return (
+    <div className="card" style={{
+      marginBottom: '32px',
+      background: 'radial-gradient(circle at 50% 0%, rgba(201,168,76,0.14) 0%, var(--color-bg-card) 100%)',
+      border: '1px solid rgba(201,168,76,0.35)',
+      boxShadow: '0 0 30px rgba(201,168,76,0.08)'
+    }}>
+      <div className="card-body" style={{ padding: '24px 20px' }}>
+
+        {toast && (
+          <div className="toast-container">
+            <div className={`toast toast-${toast.type}`}>
+              {toast.type === 'success' ? '✓' : '✕'} {toast.msg}
+            </div>
+          </div>
+        )}
+
+        {/* Title Bar */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+          <div>
+            <div className="section-badge" style={{ background: 'rgba(201,168,76,0.15)', color: 'var(--color-gold)', border: '1px solid rgba(201,168,76,0.3)', marginBottom: '6px' }}>
+              🎯 Sandeez Exclusive
+            </div>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: '900', color: 'var(--text-primary)', letterSpacing: '0.04em' }}>
+              30-Session Loss Recovery Challenge (₹31,000 Target)
+            </h2>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+              Rule Strategy: Initial ₹500 buy-in → ₹1,000 rebuy if bust → Capped at max -₹1,500 loss per session.
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button className="btn btn-secondary btn-sm" onClick={() => setShowImportModal(true)}>
+              📥 Import Session
+            </button>
+            <button className="btn btn-primary btn-sm" onClick={() => setShowAddModal(true)}>
+              + Log Session
+            </button>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div style={{ marginBottom: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontFamily: 'var(--font-display)', fontWeight: '700', marginBottom: '6px' }}>
+            <span>Recovery Progress ({summary.progressPercent}%)</span>
+            <span style={{ color: 'var(--color-gold)' }}>₹{summary.totalRecovered.toLocaleString('en-IN')} / ₹31,000</span>
+          </div>
+          <div style={{ width: '100%', height: '12px', background: 'rgba(255,255,255,0.06)', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-subtle)' }}>
+            <div style={{
+              width: `${summary.progressPercent}%`, height: '100%',
+              background: 'linear-gradient(90deg, #c9a84c, #22c55e)',
+              transition: 'width 0.5s ease-in-out'
+            }} />
+          </div>
+        </div>
+
+        {/* Core Stats Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px', marginBottom: '20px' }}>
+          <div style={{ padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+            <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--font-display)', textTransform: 'uppercase' }}>Total Recovered</div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: '900', color: summary.totalRecovered >= 0 ? '#22c55e' : '#ef4444', marginTop: '3px' }}>
+              {summary.totalRecovered >= 0 ? '+' : ''}₹{summary.totalRecovered.toLocaleString('en-IN')}
+            </div>
+          </div>
+
+          <div style={{ padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+            <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--font-display)', textTransform: 'uppercase' }}>Left to Recover</div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: '900', color: 'var(--color-gold)', marginTop: '3px' }}>
+              ₹{summary.remainingToRecover.toLocaleString('en-IN')}
+            </div>
+          </div>
+
+          <div style={{ padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+            <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--font-display)', textTransform: 'uppercase' }}>Sessions Done</div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: '900', color: 'var(--text-primary)', marginTop: '3px' }}>
+              {summary.sessionsCount} / {summary.maxSessions}
+            </div>
+          </div>
+
+          <div style={{ padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+            <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--font-display)', textTransform: 'uppercase' }}>Remaining</div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: '900', color: 'var(--color-gold)', marginTop: '3px' }}>
+              {summary.remainingSessions}
+            </div>
+          </div>
+        </div>
+
+        {/* Analytics & Detailed Breakdown */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px', marginBottom: '20px' }}>
+          <div style={{ padding: '10px 12px', background: 'rgba(239,68,68,0.06)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(239,68,68,0.2)' }}>
+            <div style={{ fontSize: '11px', color: '#ef4444', fontFamily: 'var(--font-display)', fontWeight: '700' }}>🛑 Bust (-₹1.5k)</div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: '900', color: '#ef4444', marginTop: '2px' }}>
+              {summary.bustSessionsCount} sessions
+            </div>
+          </div>
+
+          <div style={{ padding: '10px 12px', background: 'rgba(34,197,94,0.06)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(34,197,94,0.2)' }}>
+            <div style={{ fontSize: '11px', color: '#22c55e', fontFamily: 'var(--font-display)', fontWeight: '700' }}>🎉 Profit Sessions</div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: '900', color: '#22c55e', marginTop: '2px' }}>
+              {summary.profitSessionsCount} sessions
+            </div>
+          </div>
+
+          <div style={{ padding: '10px 12px', background: 'rgba(201,168,76,0.06)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(201,168,76,0.2)' }}>
+            <div style={{ fontSize: '11px', color: 'var(--color-gold)', fontFamily: 'var(--font-display)', fontWeight: '700' }}>📈 Avg Win</div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: '900', color: 'var(--color-gold)', marginTop: '2px' }}>
+              +₹{summary.avgWinningProfit.toLocaleString('en-IN')}
+            </div>
+          </div>
+
+          <div style={{ padding: '10px 12px', background: 'rgba(201,168,76,0.12)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(201,168,76,0.3)' }}>
+            <div style={{ fontSize: '11px', color: 'var(--color-gold)', fontFamily: 'var(--font-display)', fontWeight: '700' }}>⚡ Req Avg / Session</div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: '900', color: 'var(--color-gold)', marginTop: '2px' }}>
+              ₹{summary.requiredAvgProfit.toLocaleString('en-IN')}
+            </div>
+          </div>
+        </div>
+
+        {/* Predictive Scenarios */}
+        {summary.scenarios && summary.scenarios.length > 0 && (
+          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '14px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', marginBottom: '24px' }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '13px', fontWeight: '800', color: 'var(--color-gold)', letterSpacing: '0.05em', marginBottom: '8px' }}>
+              🔮 REALISTIC RECOVERY PREDICTIONS
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {summary.scenarios.map((sc, i) => (
+                <div key={i} style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ color: 'var(--color-gold)', fontWeight: '700' }}>•</span>
+                  <span>{sc.description}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Session Log List */}
+        <div>
+          <h4 style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '12px', letterSpacing: '0.05em' }}>
+            📜 Logged Challenge Sessions ({entries.length})
+          </h4>
+
+          {entries.length === 0 ? (
+            <p style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
+              No sessions logged in your challenge tracker yet. Click "+ Log Session" or "Import Session" above!
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {entries.map((entry, index) => {
+                const sNum = entries.length - index;
+                const p = Number(entry.profit || 0);
+                const isBust = p <= -1400;
+                const isWin = p > 0;
+                const isTie = p === 0;
+
+                return (
+                  <div key={entry._id} style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '12px 14px', background: 'rgba(255,255,255,0.02)',
+                    border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)',
+                    gap: '12px', flexWrap: 'wrap'
+                  }}>
+                    <div style={{ flex: 1, minWidth: '160px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontFamily: 'var(--font-display)', fontWeight: '800', color: 'var(--color-gold)', fontSize: '14px' }}>
+                          Session #{sNum}
+                        </span>
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                          {new Date(entry.sessionDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </span>
+                      </div>
+                      {entry.note && (
+                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                          {entry.note}
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{
+                          fontFamily: 'var(--font-mono)', fontWeight: '900', fontSize: '16px',
+                          color: isWin ? '#22c55e' : isTie ? 'var(--text-muted)' : '#ef4444'
+                        }}>
+                          {isWin ? '+' : ''}₹{p.toLocaleString('en-IN')}
+                        </div>
+                        <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.08em', color: isBust ? '#ef4444' : isWin ? '#22c55e' : 'var(--text-muted)', fontFamily: 'var(--font-display)', fontWeight: '700' }}>
+                          {isBust ? '🛑 Bust (-₹1.5k)' : isWin ? '🎉 Profit' : isTie ? '⚖️ Breakeven' : '📉 Loss'}
+                        </div>
+                      </div>
+
+                      {/* Delete button */}
+                      <button
+                        className="btn btn-sm"
+                        style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', padding: '4px 10px', fontSize: '12px' }}
+                        onClick={() => handleDelete(entry._id)}
+                        title="Delete session from challenge tracker"
+                      >
+                        🗑️ Delete
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Log Manual Session Modal */}
+        {showAddModal && (
+          <ChallengeLogModal
+            userId={userId}
+            onClose={() => setShowAddModal(false)}
+            onSuccess={() => {
+              setShowAddModal(false);
+              showToastMsg('Challenge session logged!');
+              loadTracker();
+            }}
+            onError={(msg) => showToastMsg(msg, 'error')}
+          />
+        )}
+
+        {/* Import Past Session Modal */}
+        {showImportModal && (
+          <ChallengeImportModal
+            userId={userId}
+            pastSessions={pastSessions}
+            loggedLinkedIds={entries.map(e => e.linkedSession).filter(Boolean)}
+            onClose={() => setShowImportModal(false)}
+            onSuccess={() => {
+              setShowImportModal(false);
+              showToastMsg('Session imported into challenge!');
+              loadTracker();
+            }}
+            onError={(msg) => showToastMsg(msg, 'error')}
+          />
+        )}
+
+      </div>
+    </div>
+  );
+}
+
+// ─── Challenge Log Manual Modal ───────────────────────────────────────────────
+function ChallengeLogModal({ userId, onClose, onSuccess, onError }) {
+  const [form, setForm] = useState({
+    profit: '',
+    buyIn: '500',
+    cashOut: '',
+    sessionDate: new Date().toISOString().split('T')[0],
+    note: ''
+  });
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (form.profit === '' || isNaN(Number(form.profit))) {
+      onError('Please enter a valid profit or loss amount');
+      return;
+    }
+
+    setLoading(true);
+    const res = await addChallengeSessionAction(userId, {
+      profit: Number(form.profit),
+      buyIn: Number(form.buyIn || 500),
+      cashOut: form.cashOut ? Number(form.cashOut) : (Number(form.buyIn || 500) + Number(form.profit)),
+      sessionDate: form.sessionDate,
+      note: form.note
+    });
+
+    setLoading(false);
+    if (res.error) {
+      onError(res.error);
+    } else {
+      onSuccess();
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+        <div className="modal-header">
+          <h2 className="modal-title">🎯 Log Challenge Session</h2>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body">
+          <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label className="form-label">Profit / Loss (₹) <span style={{ color: '#ef4444' }}>*</span></label>
+              <input
+                type="number" className="form-input"
+                placeholder="e.g., +2500 or -1500"
+                value={form.profit}
+                onChange={e => setForm(f => ({ ...f, profit: e.target.value }))}
+                required
+              />
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                Use negative number for losses (e.g. -1500 for a bust session)
+              </p>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Session Date</label>
+              <input
+                type="date" className="form-input"
+                value={form.sessionDate}
+                onChange={e => setForm(f => ({ ...f, sessionDate: e.target.value }))}
+                required
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div className="form-group">
+                <label className="form-label">Buy-In (₹)</label>
+                <input
+                  type="number" className="form-input"
+                  value={form.buyIn}
+                  onChange={e => setForm(f => ({ ...f, buyIn: e.target.value }))}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Cash-Out (₹)</label>
+                <input
+                  type="number" className="form-input"
+                  placeholder="Optional"
+                  value={form.cashOut}
+                  onChange={e => setForm(f => ({ ...f, cashOut: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Notes (Optional)</label>
+              <input
+                type="text" className="form-input"
+                placeholder="e.g. Friday home game, 2nd rebuy..."
+                value={form.note}
+                onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
+                maxLength={80}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+              <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
+              <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={loading}>
+                {loading ? 'Logging...' : 'Confirm Log'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Challenge Import Past Session Modal ──────────────────────────────────────
+function ChallengeImportModal({ userId, pastSessions, loggedLinkedIds, onClose, onSuccess, onError }) {
+  const [importingId, setImportingId] = useState(null);
+
+  // Filter ended past sessions where sandeez has a result
+  const availableSessions = (pastSessions || []).filter(s => {
+    const isLinked = loggedLinkedIds.includes(s._id?.toString() || s._id);
+    const myPlayer = (s.players || []).find(p => (p.user?._id || p.user)?.toString() === userId);
+    return !isLinked && myPlayer && myPlayer.finalStack != null;
+  });
+
+  const handleImport = async (sessionId) => {
+    setImportingId(sessionId);
+    const res = await importSessionToChallengeAction(userId, sessionId);
+    setImportingId(null);
+    if (res.error) {
+      onError(res.error);
+    } else {
+      onSuccess();
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+        <div className="modal-header">
+          <h2 className="modal-title">📥 Import Ended Session</h2>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body">
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+            Select any past ended session to automatically import your P/L result into your 30-Session Tracker:
+          </p>
+
+          {availableSessions.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '13px' }}>
+              No unimported past ended sessions found with finalized stats.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto' }}>
+              {availableSessions.map(s => {
+                const myPlayer = s.players.find(p => (p.user?._id || p.user)?.toString() === userId);
+                const buyIn = myPlayer?.totalBuyIn || 500;
+                const cashOut = myPlayer?.finalStack || 0;
+                const profit = cashOut - buyIn;
+                const isWin = profit > 0;
+                const isImporting = importingId === s._id;
+
+                return (
+                  <div key={s._id} style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '12px 14px', background: 'rgba(255,255,255,0.02)',
+                    border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)'
+                  }}>
+                    <div>
+                      <div style={{ fontFamily: 'var(--font-display)', fontWeight: '800', fontSize: '14px', color: 'var(--text-primary)' }}>
+                        {s.name}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        {s.group?.name ? `Group: ${s.group.name} • ` : ''}
+                        {new Date(s.endedAt || s.startedAt || Date.now()).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span style={{
+                        fontFamily: 'var(--font-mono)', fontWeight: '900', fontSize: '14px',
+                        color: isWin ? '#22c55e' : profit === 0 ? 'var(--text-muted)' : '#ef4444'
+                      }}>
+                        {isWin ? '+' : ''}₹{profit.toLocaleString('en-IN')}
+                      </span>
+                      <button
+                        className="btn btn-primary btn-sm"
+                        onClick={() => handleImport(s._id)}
+                        disabled={isImporting}
+                      >
+                        {isImporting ? '...' : '+ Import'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-ghost w-full" onClick={onClose}>Close</button>
+        </div>
       </div>
     </div>
   );

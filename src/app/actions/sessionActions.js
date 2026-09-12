@@ -21,7 +21,7 @@ function generateRoomCode() {
 export async function createSessionAction(userId, data) {
   try {
     await connectDB();
-    const { name, initialBank, groupId, defaultBuyIn } = data;
+    const { name, initialBank, groupId, defaultBuyIn, autoAddMemberIds } = data;
 
     if (!name || name.trim().length < 2) {
        return { error: 'Session name must be at least 2 characters' };
@@ -58,8 +58,58 @@ export async function createSessionAction(userId, data) {
     }
 
     const initBank = Number(initialBank);
+    let runningBank = initBank - buyinAmt;
 
-    // Admin gets auto buy-in configured amount
+    const initialPlayers = [{
+      user: userId,
+      username: creatorUser.username,
+      avatarColor: creatorUser.avatarColor,
+      totalBuyIn: buyinAmt
+    }];
+
+    const initialTransactions = [{
+      type: 'buyin',
+      fromType: 'bank',
+      from: null,
+      fromUsername: 'Bank',
+      to: userId,
+      toUsername: creatorUser.username,
+      amount: buyinAmt,
+      note: 'Auto buy-in'
+    }];
+
+    // Auto-add selected group members if creator is sandeez or admin
+    if (Array.isArray(autoAddMemberIds) && autoAddMemberIds.length > 0) {
+      for (const targetId of autoAddMemberIds) {
+        if (targetId.toString() === userId) continue;
+        if (!group.members.some(m => m.toString() === targetId.toString())) continue;
+
+        const targetUser = await User.findById(targetId);
+        if (!targetUser) continue;
+
+        const memberBuyin = Math.min(buyinAmt, runningBank);
+        initialPlayers.push({
+          user: targetUser._id,
+          username: targetUser.username,
+          avatarColor: targetUser.avatarColor,
+          totalBuyIn: memberBuyin
+        });
+
+        runningBank -= memberBuyin;
+
+        initialTransactions.push({
+          type: 'buyin',
+          fromType: 'bank',
+          from: null,
+          fromUsername: 'Bank',
+          to: targetUser._id,
+          toUsername: targetUser.username,
+          amount: memberBuyin,
+          note: 'Auto buy-in (Admin Added)'
+        });
+      }
+    }
+
     const session = await Session.create({
       name: name.trim(),
       roomCode,
@@ -68,29 +118,17 @@ export async function createSessionAction(userId, data) {
       group: groupId,
       initialBank: initBank,
       defaultBuyIn: buyinAmt,
-      currentBank: initBank - buyinAmt,
-      players: [{
-        user: userId,
-        username: creatorUser.username,
-        avatarColor: creatorUser.avatarColor,
-        totalBuyIn: buyinAmt
-      }],
-      transactions: [{
-        type: 'buyin',
-        fromType: 'bank',
-        from: null,
-        fromUsername: 'Bank',
-        to: userId,
-        toUsername: creatorUser.username,
-        amount: buyinAmt,
-        note: 'Auto buy-in'
-      }]
+      currentBank: runningBank,
+      players: initialPlayers,
+      transactions: initialTransactions
     });
 
     await Group.findByIdAndUpdate(groupId, { $inc: { totalSessions: 1 } });
 
-    // Ensure admin is in memberStats
-    await _ensureMemberStat(groupId, userId, creatorUser.username, creatorUser.avatarColor);
+    // Ensure all added players are in memberStats
+    for (const p of initialPlayers) {
+      await _ensureMemberStat(groupId, p.user.toString(), p.username, p.avatarColor);
+    }
 
     return { session: JSON.parse(JSON.stringify(session)) };
   } catch (err) {
@@ -159,6 +197,74 @@ export async function joinSessionAction(userId, roomCode) {
   } catch (err) {
     console.error('Join session error:', err);
     return { error: 'Server error joining session' };
+  }
+}
+
+// ─── Admin Add Player Directly (One Phone Mode for Sandeez) ───────────────────
+export async function addPlayerToSessionAction(adminUserId, roomCode, targetUserId) {
+  try {
+    await connectDB();
+    const adminUser = await User.findById(adminUserId);
+    if (!adminUser) return { error: 'Admin user not found' };
+
+    const session = await Session.findOne({ roomCode: roomCode.toUpperCase().trim(), status: 'active' });
+    if (!session) return { error: 'Session not found or has ended' };
+
+    // Must be admin or user sandeez
+    const isAdminOrSandeez = session.admin.toString() === adminUserId || adminUser.username.toLowerCase() === 'sandeez';
+    if (!isAdminOrSandeez) {
+      return { error: 'Only session admin or sandeez can add players directly' };
+    }
+
+    const targetUser = await User.findById(targetUserId);
+    if (!targetUser) return { error: 'Target user not found' };
+
+    const alreadyIn = session.players.some(p => p.user.toString() === targetUserId);
+    if (alreadyIn) {
+      return { error: `${targetUser.username} is already in this session` };
+    }
+
+    // Must be member of group
+    const group = await Group.findById(session.group);
+    if (!group || !group.members.some(m => m.toString() === targetUserId)) {
+      return { error: `${targetUser.username} is not a member of this session's group` };
+    }
+
+    const buyinTarget = session.defaultBuyIn || 200;
+    const warnings = [];
+    if (buyinTarget > session.currentBank) {
+      warnings.push(`Bank balance (₹${session.currentBank}) lower than default buy-in`);
+    }
+    const buyinAmount = Math.min(buyinTarget, session.currentBank);
+
+    session.players.push({
+      user: targetUser._id,
+      username: targetUser.username,
+      avatarColor: targetUser.avatarColor,
+      totalBuyIn: buyinAmount
+    });
+
+    session.currentBank -= buyinAmount;
+
+    session.transactions.push({
+      type: 'buyin',
+      fromType: 'bank',
+      from: null,
+      fromUsername: 'Bank',
+      to: targetUser._id,
+      toUsername: targetUser.username,
+      amount: buyinAmount,
+      note: 'Auto buy-in (Admin Added)'
+    });
+
+    await session.save();
+
+    await _ensureMemberStat(session.group.toString(), targetUser._id.toString(), targetUser.username, targetUser.avatarColor);
+
+    return { session: JSON.parse(JSON.stringify(session)), warnings, message: `Added ${targetUser.username} to session!` };
+  } catch (err) {
+    console.error('addPlayerToSessionAction error:', err);
+    return { error: 'Server error adding player to session' };
   }
 }
 

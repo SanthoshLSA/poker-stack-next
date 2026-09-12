@@ -8,8 +8,10 @@ import {
   recordTransactionAction,
   editTransactionAction,
   deleteTransactionAction,
-  endSessionAction
+  endSessionAction,
+  addPlayerToSessionAction
 } from '../../actions/sessionActions';
+import { getGroupDetailAction } from '../../actions/groupActions';
 
 const formatINR = n => '₹' + Number(n || 0).toLocaleString('en-IN');
 const POLL_INTERVAL = 10000;
@@ -20,9 +22,9 @@ export default function SessionRoomPage() {
   const router = useRouter();
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [showTxModal, setShowTxModal] = useState(false);
   const [showEndModal, setShowEndModal] = useState(false);
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [editingTx, setEditingTx] = useState(null);
   const [toast, setToast] = useState(null);
@@ -160,6 +162,7 @@ export default function SessionRoomPage() {
       {isAdmin && isActive && (
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
           <button className="btn btn-primary" onClick={() => setShowTxModal(true)}>♠ Record Transaction</button>
+          <button className="btn btn-secondary" onClick={() => setShowAddMemberModal(true)}>⚡ Add Group Member</button>
           <button className="btn btn-danger" onClick={() => setShowEndModal(true)}>End Session</button>
         </div>
       )}
@@ -328,6 +331,21 @@ export default function SessionRoomPage() {
             setSession(updatedSession);
             setEditingTx(null);
             showToast('Transaction updated!');
+          }}
+          onError={msg => showToast(msg, 'error')}
+        />
+      )}
+
+      {/* Add Group Member Modal */}
+      {showAddMemberModal && (
+        <AddGroupMemberModal
+          session={session}
+          userId={user._id}
+          onClose={() => setShowAddMemberModal(false)}
+          onSuccess={(updatedSession, msg) => {
+            setSession(updatedSession);
+            setShowAddMemberModal(false);
+            showToast(msg || 'Player added to session!');
           }}
           onError={msg => showToast(msg, 'error')}
         />
@@ -682,6 +700,102 @@ function EndSessionModal({ session, userId, onClose, onSuccess, onError }) {
               {loading ? 'Ending...' : '🔴 End Session & Save Results'}
             </button>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Add Group Member Modal (One Phone Mode for Sandeez) ─────────────────────
+function AddGroupMemberModal({ session, userId, onClose, onSuccess, onError }) {
+  const [groupMembers, setGroupMembers] = useState([]);
+  const [loadingMembers, setLoadingMembers] = useState(true);
+  const [addingUserId, setAddingUserId] = useState(null);
+
+  useEffect(() => {
+    if (session?.group?._id || session?.group) {
+      const groupId = session.group._id || session.group;
+      getGroupDetailAction(userId, groupId).then(res => {
+        if (!res.error && res.group) {
+          setGroupMembers(res.group.memberStats || []);
+        } else {
+          onError(res.error || 'Could not fetch group members');
+        }
+        setLoadingMembers(false);
+      });
+    }
+  }, [session, userId]);
+
+  const activePlayerIds = (session.players || []).map(p => (p.user?._id || p.user)?.toString());
+  const availableMembers = groupMembers.filter(m => {
+    const mId = (m.user?._id || m.user)?.toString();
+    return !activePlayerIds.includes(mId);
+  });
+
+  const handleAddPlayer = async (targetUserId) => {
+    setAddingUserId(targetUserId);
+    const result = await addPlayerToSessionAction(userId, session.roomCode, targetUserId);
+    setAddingUserId(null);
+
+    if (result.error) {
+      onError(result.error);
+    } else {
+      onSuccess(result.session, result.message);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '460px' }}>
+        <div className="modal-header">
+          <h2 className="modal-title">⚡ Add Group Member</h2>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body">
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+            Add members from <strong style={{ color: 'var(--color-gold)' }}>{session.group?.name || 'this group'}</strong> directly into the session. They will automatically get ₹{session.defaultBuyIn || 200} buy-in.
+          </p>
+
+          {loadingMembers ? (
+            <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
+              Loading group members...
+            </div>
+          ) : availableMembers.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
+              All group members are already in this session!
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '280px', overflowY: 'auto' }}>
+              {availableMembers.map(m => {
+                const targetId = (m.user?._id || m.user)?.toString();
+                const isAdding = addingUserId === targetId;
+                return (
+                  <div key={targetId} style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '12px 16px', background: 'rgba(255,255,255,0.02)',
+                    border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div className="avatar avatar-sm" style={{ background: m.avatarColor || '#c9a84c', color: '#0a0a0f' }}>
+                        {m.username?.charAt(0).toUpperCase()}
+                      </div>
+                      <span style={{ fontWeight: '700', fontFamily: 'var(--font-display)' }}>{m.username}</span>
+                    </div>
+                    <button
+                      className="btn btn-primary btn-sm"
+                      onClick={() => handleAddPlayer(targetId)}
+                      disabled={isAdding}
+                    >
+                      {isAdding ? 'Adding...' : '+ Add'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-ghost w-full" onClick={onClose}>Close</button>
         </div>
       </div>
     </div>

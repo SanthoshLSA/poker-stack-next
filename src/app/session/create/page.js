@@ -15,6 +15,8 @@ export default function CreateSessionPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const [selectedMemberIds, setSelectedMemberIds] = useState([]);
+
   useEffect(() => {
     if (!authLoading && !user) { router.push('/login'); return; }
     if (user) {
@@ -32,7 +34,25 @@ export default function CreateSessionPage() {
 
   if (authLoading || !user) return null;
 
-  const handleChange = e => setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  const handleChange = e => {
+    const { name, value } = e.target;
+    setForm(prev => ({ ...prev, [name]: value }));
+    if (name === 'groupId') {
+      setSelectedMemberIds([]);
+    }
+  };
+
+  const toggleMemberSelection = (mId) => {
+    setSelectedMemberIds(prev =>
+      prev.includes(mId) ? prev.filter(id => id !== mId) : [...prev, mId]
+    );
+  };
+
+  const isSandeez = user?.username?.toLowerCase() === 'sandeez';
+  const selectedGroup = groups.find(g => g._id === form.groupId);
+  const otherMembers = selectedGroup?.memberStats
+    ? selectedGroup.memberStats.filter(m => (m.user?._id || m.user)?.toString() !== user._id)
+    : [];
 
   const handleSubmit = async e => {
     e.preventDefault();
@@ -50,7 +70,8 @@ export default function CreateSessionPage() {
       name: form.name,
       initialBank: bankVal,
       defaultBuyIn: buyinVal,
-      groupId: form.groupId
+      groupId: form.groupId,
+      autoAddMemberIds: isSandeez ? selectedMemberIds : []
     });
 
     if (result.error) {
@@ -116,6 +137,42 @@ export default function CreateSessionPage() {
                 Session will be private to this group's members
               </p>
             </div>
+
+            {/* Sandeez Quick Add Members (One Phone Mode) */}
+            {isSandeez && form.groupId && otherMembers.length > 0 && (
+              <div className="form-group" style={{ background: 'rgba(201,168,76,0.06)', padding: '14px', borderRadius: 'var(--radius-md)', border: '1px solid rgba(201,168,76,0.2)', marginBottom: '20px' }}>
+                <label className="form-label" style={{ color: 'var(--color-gold)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  ⚡ Quick Add Group Members (One Phone Mode)
+                </label>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px' }}>
+                  Check members to automatically add them to this session without requiring them to join on their phone:
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px', maxHeight: '160px', overflowY: 'auto', paddingRight: '4px' }}>
+                  {otherMembers.map(m => {
+                    const mId = (m.user?._id || m.user)?.toString();
+                    const isChecked = selectedMemberIds.includes(mId);
+                    return (
+                      <label key={mId} style={{
+                        display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px',
+                        padding: '6px 10px', background: isChecked ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.02)',
+                        border: `1px solid ${isChecked ? 'rgba(201,168,76,0.4)' : 'var(--border-subtle)'}`,
+                        borderRadius: 'var(--radius-sm)', transition: 'all 0.15s'
+                      }}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleMemberSelection(mId)}
+                          style={{ cursor: 'pointer', accentColor: 'var(--color-gold)' }}
+                        />
+                        <span style={{ fontWeight: isChecked ? '700' : '400', color: isChecked ? 'var(--color-gold)' : 'var(--text-primary)' }}>
+                          {m.username}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <div className="form-group">
               <label className="form-label">Session Name ♠</label>
