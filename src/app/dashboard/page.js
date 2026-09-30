@@ -11,7 +11,8 @@ import {
   getChallengeAction,
   addChallengeSessionAction,
   deleteChallengeSessionAction,
-  importSessionToChallengeAction
+  importSessionToChallengeAction,
+  resetChallengeAction
 } from '../actions/challengeActions';
 
 const formatINR = n => '₹' + Number(n || 0).toLocaleString('en-IN');
@@ -936,7 +937,7 @@ function BlackjackDealer() {
   );
 }
 
-// ─── Sandeez 30-Session Recovery Challenge Tracker Component ──────────────────
+// ─── Sandeez 20-Session Profit Goal Challenge Tracker Component ────────────────
 function SandeezChallengeTracker({ userId, pastSessions }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -972,10 +973,21 @@ function SandeezChallengeTracker({ userId, pastSessions }) {
     }
   };
 
+  const handleReset = async () => {
+    if (!confirm('Are you sure you want to reset all challenge sessions and start fresh on the 20-session ₹11,000 challenge?')) return;
+    const res = await resetChallengeAction(userId);
+    if (res.error) {
+      showToastMsg(res.error, 'error');
+    } else {
+      showToastMsg('Challenge reset successfully!');
+      loadTracker();
+    }
+  };
+
   if (loading) {
     return (
       <div className="card" style={{ marginBottom: '32px', padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>
-        Loading 30-Session Recovery Tracker...
+        Loading 20-Session Profit Tracker...
       </div>
     );
   }
@@ -1008,13 +1020,16 @@ function SandeezChallengeTracker({ userId, pastSessions }) {
               Sandeez Exclusive
             </div>
             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: '900', color: 'var(--text-primary)', letterSpacing: '0.04em' }}>
-              30-Session Loss Recovery Challenge (₹31,000 Target)
+              20-Session Profit Goal Challenge (₹11,000 Target)
             </h2>
             <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
               Rule Strategy: Initial ₹500 buy-in → ₹1,000 rebuy if bust → Capped at max -₹1,500 loss per session.
             </p>
           </div>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button className="btn btn-ghost btn-sm" style={{ color: 'var(--text-muted)' }} onClick={handleReset} title="Reset all challenge entries to start 0/20">
+              Reset Tracker
+            </button>
             <button className="btn btn-secondary btn-sm" onClick={() => setShowImportModal(true)}>
               Import Session
             </button>
@@ -1027,8 +1042,8 @@ function SandeezChallengeTracker({ userId, pastSessions }) {
         {/* Progress Bar */}
         <div style={{ marginBottom: '20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontFamily: 'var(--font-display)', fontWeight: '700', marginBottom: '6px' }}>
-            <span>Recovery Progress ({summary.progressPercent}%)</span>
-            <span style={{ color: 'var(--color-gold)' }}>₹{summary.totalRecovered.toLocaleString('en-IN')} / ₹31,000</span>
+            <span>Goal Progress ({summary.progressPercent}%)</span>
+            <span style={{ color: 'var(--color-gold)' }}>₹{summary.totalProfit.toLocaleString('en-IN')} / ₹11,000</span>
           </div>
           <div style={{ width: '100%', height: '12px', background: 'rgba(255,255,255,0.06)', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-subtle)' }}>
             <div style={{
@@ -1042,16 +1057,16 @@ function SandeezChallengeTracker({ userId, pastSessions }) {
         {/* Core Stats Grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px', marginBottom: '20px' }}>
           <div style={{ padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
-            <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--font-display)', textTransform: 'uppercase' }}>Total Recovered</div>
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: '900', color: summary.totalRecovered >= 0 ? '#22c55e' : '#ef4444', marginTop: '3px' }}>
-              {summary.totalRecovered >= 0 ? '+' : ''}₹{summary.totalRecovered.toLocaleString('en-IN')}
+            <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--font-display)', textTransform: 'uppercase' }}>Total Profit</div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: '900', color: summary.totalProfit >= 0 ? '#22c55e' : '#ef4444', marginTop: '3px' }}>
+              {summary.totalProfit >= 0 ? '+' : ''}₹{summary.totalProfit.toLocaleString('en-IN')}
             </div>
           </div>
 
           <div style={{ padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
-            <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--font-display)', textTransform: 'uppercase' }}>Left to Recover</div>
+            <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--font-display)', textTransform: 'uppercase' }}>Left to Goal</div>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: '900', color: 'var(--color-gold)', marginTop: '3px' }}>
-              ₹{summary.remainingToRecover.toLocaleString('en-IN')}
+              ₹{summary.remainingProfitToGoal.toLocaleString('en-IN')}
             </div>
           </div>
 

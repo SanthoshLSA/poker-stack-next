@@ -5,8 +5,8 @@ import ChallengeSession from '../models/Challenge';
 import User from '../models/User';
 import Session from '../models/Session';
 
-const GOAL_LOSS_RECOVERY = 31000;
-const MAX_CHALLENGE_SESSIONS = 30;
+const GOAL_PROFIT = 11000;
+const MAX_CHALLENGE_SESSIONS = 20;
 const MAX_SESSION_LOSS = 1500; // 500 initial + 1000 rebuy
 
 export async function getChallengeAction(userId) {
@@ -24,7 +24,7 @@ export async function getChallengeAction(userId) {
 
     const entriesJSON = JSON.parse(JSON.stringify(entries));
 
-    let totalRecovered = 0;
+    let totalProfit = 0;
     let bustSessionsCount = 0;
     let profitSessionsCount = 0;
     let breakevenSessionsCount = 0;
@@ -34,7 +34,7 @@ export async function getChallengeAction(userId) {
 
     entriesJSON.forEach(entry => {
       const p = Number(entry.profit || 0);
-      totalRecovered += p;
+      totalProfit += p;
 
       if (p > 0) {
         profitSessionsCount++;
@@ -52,31 +52,31 @@ export async function getChallengeAction(userId) {
 
     const sessionsCount = entriesJSON.length;
     const remainingSessions = Math.max(0, MAX_CHALLENGE_SESSIONS - sessionsCount);
-    const remainingToRecover = Math.max(0, GOAL_LOSS_RECOVERY - totalRecovered);
+    const remainingProfitToGoal = Math.max(0, GOAL_PROFIT - totalProfit);
 
     const avgWinningProfit = profitSessionsCount > 0 ? Math.round(totalWinningProfit / profitSessionsCount) : 0;
     const avgLossAmount = lossSessionsCount > 0 ? Math.round(totalLossAmount / lossSessionsCount) : 0;
 
     const requiredAvgProfit = remainingSessions > 0
-      ? Math.ceil(remainingToRecover / remainingSessions)
+      ? Math.ceil(remainingProfitToGoal / remainingSessions)
       : 0;
 
     // Predictions / Scenarios (Up to 10 busts)
     const scenarios = [];
-    if (remainingSessions > 0 && remainingToRecover > 0) {
+    if (remainingSessions > 0 && remainingProfitToGoal > 0) {
       const maxBustsToCalculate = Math.min(10, remainingSessions - 1);
       for (let busts = 0; busts <= maxBustsToCalculate; busts++) {
         const remainingWinningSessions = remainingSessions - busts;
         if (remainingWinningSessions <= 0) break;
 
-        const totalNeeded = remainingToRecover + (MAX_SESSION_LOSS * busts);
+        const totalNeeded = remainingProfitToGoal + (MAX_SESSION_LOSS * busts);
         const reqAvg = Math.ceil(totalNeeded / remainingWinningSessions);
 
         let desc = '';
         if (busts === 0) {
-          desc = `0 additional busts: Need an average profit of ₹${reqAvg.toLocaleString('en-IN')}/session across your remaining ${remainingWinningSessions} session${remainingWinningSessions !== 1 ? 's' : ''}.`;
+          desc = `0 additional busts: Need an average profit of ₹${reqAvg.toLocaleString('en-IN')}/session across your remaining ${remainingWinningSessions} session${remainingWinningSessions !== 1 ? 's' : ''} to reach ₹${GOAL_PROFIT.toLocaleString('en-IN')}.`;
         } else {
-          desc = `${busts} additional bust${busts > 1 ? 's' : ''} (-₹${(MAX_SESSION_LOSS * busts).toLocaleString('en-IN')}): Remaining ${remainingWinningSessions} session${remainingWinningSessions !== 1 ? 's' : ''} will require an average profit of ₹${reqAvg.toLocaleString('en-IN')}/session.`;
+          desc = `${busts} additional bust${busts > 1 ? 's' : ''} (-₹${(MAX_SESSION_LOSS * busts).toLocaleString('en-IN')}): Remaining ${remainingWinningSessions} session${remainingWinningSessions !== 1 ? 's' : ''} will require an average profit of ₹${reqAvg.toLocaleString('en-IN')}/session to reach ₹${GOAL_PROFIT.toLocaleString('en-IN')}.`;
         }
 
         scenarios.push({
@@ -89,13 +89,13 @@ export async function getChallengeAction(userId) {
     }
 
     const summary = {
-      goalAmount: GOAL_LOSS_RECOVERY,
+      goalAmount: GOAL_PROFIT,
       maxSessions: MAX_CHALLENGE_SESSIONS,
       maxSessionLoss: MAX_SESSION_LOSS,
       sessionsCount,
       remainingSessions,
-      totalRecovered,
-      remainingToRecover,
+      totalProfit,
+      remainingProfitToGoal,
       bustSessionsCount,
       profitSessionsCount,
       breakevenSessionsCount,
@@ -104,13 +104,29 @@ export async function getChallengeAction(userId) {
       avgLossAmount,
       requiredAvgProfit,
       scenarios,
-      progressPercent: Math.min(100, Math.max(0, Math.round((totalRecovered / GOAL_LOSS_RECOVERY) * 100)))
+      progressPercent: Math.min(100, Math.max(0, Math.round((totalProfit / GOAL_PROFIT) * 100)))
     };
 
     return { summary, entries: entriesJSON };
   } catch (err) {
     console.error('getChallengeAction error:', err);
     return { error: 'Server error fetching challenge data' };
+  }
+}
+
+export async function resetChallengeAction(userId) {
+  try {
+    await connectDB();
+    const user = await User.findById(userId);
+    if (!user || user.username.toLowerCase() !== 'sandeez') {
+      return { error: 'Challenge tracker is exclusive to user sandeez' };
+    }
+
+    await ChallengeSession.deleteMany({ user: userId });
+    return { success: true };
+  } catch (err) {
+    console.error('resetChallengeAction error:', err);
+    return { error: 'Server error resetting challenge' };
   }
 }
 
